@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="shortcut icon" href="img/favicon.png">
+    <title>JS Emulator</title>
+    <!-- Bootstrap core CSS + customizations -->
+    <link rel="stylesheet" type="text/css" href="index.css">
+    <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+    <script src="bower_components/html5shiv/dist/html5shiv.js"></script>
+    <script src="bower_components/respond/dest/respond.min.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <section>
+      <div class='container'>
+        <div class='row'>
+          <div class='col-md-12'>
+            <h1 class='text-center'>Hello</h1>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- Placed at the end of the document so the pages load faster -->
+    <script type="text/javascript" src="bower_components/jquery/dist/jquery.js"></script>
+    <script type="text/javascript" src="bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
+    <script>
+      $(window).load(function() {
+      
+      });
+      
+      var Z80 = { 
+        // Time clock: The Z80 holds two types of clock (m and t) 
+        _clock: {m:0, t:0}, 
+        
+        /*
+         * Register set.
+         * 
+         * There are four flags (register F) in the Z80:
+         * 
+         * Zero (0x80): Set if the last operation produced a result of 0;
+         * Operation (0x40): Set if the last operation was a subtraction;
+         * Half-carry (0x20): Set if, in the result of the last operation, the lower half of the byte overflowed past 15;
+         * Carry (0x10): Set if the last operation produced a result over 255 (for additions) or under 0 (for subtractions).
+         */
+        }
+        _r: { 
+          a:0, b:0, c:0, d:0, e:0, h:0, l:0, f:0, // 8-bit registers 
+          pc:0, sp:0, // 16-bit registers 
+          m:0, t:0 // Clock for last instr 
+      };
+      
+      $(document).ready(function(evt) {
+        // http://imrannazar.com/GameBoy-Emulation-in-JavaScript
+        
+        /**
+         * The CPU in the original GameBoy is a modified Zilog Z80, so the following things are pertinent:
+         * 
+         * > The Z80 is an 8-bit chip, so all the internal workings operate on one byte at a time;
+         * > The memory interface can address up to 65,536 bytes (a 16-bit address bus);
+         * > Programs are accessed through the same address bus as normal memory;
+         * > An instruction can be anywhere between one and three bytes.
+         * 
+         * In addition to the PC, other numbers are held inside the CPU that can be used for calculation, 
+         * and they're referred to as registers: A, B, C, D, E, H, and L. Each of them is one byte, so 
+         * each one can hold a value from 0 to 255. Most of the instructions in the Z80 are used to 
+         * handle values in these registers: loading a value from memory into a register, adding or 
+         * subtracting values, and so forth.
+         * 
+         * There are other registers in the Z80, that deal with holding status: the flags register (F), 
+         * whose operation is discussed below; and the stack pointer (SP) which is used alongside the 
+         * PUSH and POP instructions for basic LIFO handling of values.
+         * 
+         * The basic model of the Z80 emulation would therefore require the following components:
+         * 
+         * > An internal state:
+         * > > A structure for retaining the current state of the registers;
+         * > > The amount of time used to execute the last instruction;
+         * > > The amount of time that the CPU has run in total;
+         * > Functions to simulate each instruction;
+         * > A table mapping said functions onto the opcode map;
+         * > A known interface to talk to the simulated memory.
+         */
+        
+      });
+    </script>
+  </body>
+</html>
