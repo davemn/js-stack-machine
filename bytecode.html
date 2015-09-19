@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="shortcut icon" href="img/favicon.png">
+    <title>JS Emulator</title>
+    <!-- Bootstrap core CSS + customizations -->
+    <link rel="stylesheet" type="text/css" href="index.css">
+    <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+    <script src="bower_components/html5shiv/dist/html5shiv.js"></script>
+    <script src="bower_components/respond/dest/respond.min.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <section>
+      <div class='container'>
+        <div class='row'>
+          <div class='col-md-12'>
+            <h1 class='text-center'>Hello</h1>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- Placed at the end of the document so the pages load faster -->
+    <script type="text/javascript" src="bower_components/jquery/dist/jquery.js"></script>
+    <script type="text/javascript" src="bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
+    <script>
+      $(window).load(function() {
+      
+      });
+      
+      var Memory = {
+        
+      };
+      
+      var Instruction = {
+        IMM: 0x00, // immediate
+        ADD: 0x01,
+        SUB: 0x02,
+        MUL: 0x03,
+        DIV: 0x04,
+        JMP: 0x05, // absolute address ...
+        BEQ: 0x06,
+        BNE: 0x07,
+        LOD: 0x08,
+        STO: 0x09
+        // TODO PC relative addressing?
+      };
+      
+      var VM = {
+        stack: [],
+        stackMax: 128,
+        
+        push: function(val){
+          if(this.stack.length >= this.stackMax)
+            throw new Error('Stack overflow!');
+        
+          this.stack.push(val & 0xff);
+        },
+        pop: function(){
+          if(this.stack.length <= 0)
+            throw new Error('Stack underflow!');
+        
+          var val = this.stack.pop();
+          return (val & 0xff);
+        },
+        
+        interpret: function(bytecode){
+          var instruction, next;
+          var lhs, rhs;
+          
+          for(var i=0; i < bytecode.length; i++){
+            if(i < 0 || i >= bytecode.length)
+              throw new Error('Segmentation fault!');
+            
+            // force all instructions to 1 byte
+            instruction = bytecode[i] & 0xff;
+            if((i+1) < bytecode.length)
+              next = bytecode[i+1] & 0xff;
+            else // must include else, so that previous 'next' val doesn't persist across instructions
+              next = null;
+            
+            // check for well-formed instructions
+            switch(instruction){
+              case Instruction.IMM:
+              case Instruction.JMP:
+              case Instruction.BEQ:
+              case Instruction.BNE:
+              case Instruction.LOD:
+              case Instruction.STO:
+                if(next === null)
+                  throw new Exception('Expected two-byte instruction!');
+            }
+            
+            // execute instructions
+            switch(instruction){
+              default: // TODO must be at end of switch statement?
+                throw new Exception('Unrecognized opcode!');
+              case Instruction.IMM:
+                this.push(next);
+                i++;
+                break;
+              case Instruction.ADD:
+                rhs = this.pop();
+                lhs = this.pop();
+                this.push(lhs + rhs);
+                break;
+              case Instruction.SUB:
+                rhs = this.pop();
+                lhs = this.pop();
+                this.push(lhs - rhs);
+                break;
+              case Instruction.MUL:
+                rhs = this.pop();
+                lhs = this.pop();
+                this.push(lhs * rhs);
+                break;
+              case Instruction.DIV:
+                rhs = this.pop();
+                lhs = this.pop();
+                this.push(lhs / rhs);
+                break;
+              case Instruction.JMP:
+                // addr = this.pop(); // would allow you to calculate jump addresses ... not needed
+                i = next-1; // -1 since we're automatically incrementing i
+                break;
+              case Instruction.BEQ:
+                rhs = this.pop();
+                lhs = this.pop();
+                if(lhs === rhs)
+                  i = next-1;
+                else
+                  i++; // since we need to skip immediate value
+                break;
+              case Instruction.BNE:
+                rhs = this.pop();
+                lhs = this.pop();
+                if(lhs !== rhs)
+                  i = next-1; 
+                else
+                  i++;
+                break;
+              case Instruction.LOD:
+                if(next < 0 || next >= bytecode.length) // check address since not using PC to access mem
+                  throw new Error('Segmentation fault!');
+                this.push(bytecode[next]);
+                i++;
+                break;
+              case Instruction.STO:
+                if(next < 0 || next >= bytecode.length) // check address since not using PC to access mem
+                  throw new Error('Segmentation fault!');
+                bytecode[next] = this.pop();
+                i++;
+                break;
+            }
+          }
+        }
+      };
+            
+      $(document).ready(function(evt) {
+        
+      });
+    </script>
+  </body>
+</html>
