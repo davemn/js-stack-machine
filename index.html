@@ -35,7 +35,14 @@
       
       var Z80 = { 
         // Time clock: The Z80 holds two types of clock (m and t) 
-        _clock: {m:0, t:0}, 
+        clock: {m:0, t:0}, 
+        
+        // Empty registers, values copied to actual registers on reset
+        _r_zero: {
+          a:0, b:0, c:0, d:0, e:0, h:0, l:0, f:0, // 8-bit registers 
+          pc:0, sp:0, // 16-bit registers 
+          m:0, t:0 // Clock for last instr 
+        },
         
         /*
          * Register set.
@@ -47,11 +54,62 @@
          * Half-carry (0x20): Set if, in the result of the last operation, the lower half of the byte overflowed past 15;
          * Carry (0x10): Set if the last operation produced a result over 255 (for additions) or under 0 (for subtractions).
          */
-        }
         _r: { 
           a:0, b:0, c:0, d:0, e:0, h:0, l:0, f:0, // 8-bit registers 
           pc:0, sp:0, // 16-bit registers 
           m:0, t:0 // Clock for last instr 
+        },
+        
+        reset: function(){
+          this._r = $.extend({}, this._r_zero); // clone zeroed registers into actual registers
+        },
+        
+        map: [ // 256 instructions, 0x00 - 0xFF, i.e. a single byte needed for opcode
+          this._ops.NOP,
+          this._ops.LDBCnn,
+          this._ops.LDBCmA,
+          this._ops.INCBC,
+          this._ops.INCr_b
+          // ...
+        ],
+        
+        this._ops: {
+          NOP: function(){},
+          LDBCnn: function(){},
+          LDBCmA: function(){},
+          INCBC: function(){},
+          INCr_b: function(){},
+          
+          // Add E to A, leaving result in A (ADD A, E) 
+          ADDr_e: function() { 
+            this._r.a += this._r.e; // Perform addition 
+            this._r.f = 0; // Clear flags 
+            if(!(this._r.a & 255)) this._r.f |= 0x80; // Check for zero 
+            if(this._r.a > 255) this._r.f |= 0x10; // Check for carry 
+            this._r.a &= 255; // Mask to 8-bits 
+            this._r.m = 1; this._r.t = 4; // 1 M-time taken 
+          },
+          // Push registers B and C to the stack (PUSH BC) 
+          PUSHBC: function() { 
+            this._r.sp--; // Drop through the stack 
+            MMU.wb(this._r.sp, this._r.b); // Write B 
+            this._r.sp--; // Drop through the stack 
+            MMU.wb(this._r.sp, this._r.c); // Write C 
+            this._r.m = 3; this._r.t = 12; // 3 M-times taken 
+          }
+        }
+      };
+      
+      var MMU = {
+        /*
+         * 16-bit address space, for a total memory size of 64K.
+         * All addresses can be represented by: 0xHHLL, H = high, L = low
+         */
+      
+        rb: function(addr) { /* Read 8-bit byte from a given address */ }, 
+        rw: function(addr) { /* Read 16-bit word from a given address */ }, 
+        wb: function(addr, val) { /* Write 8-bit byte to a given address */ }, 
+        ww: function(addr, val) { /* Write 16-bit word to a given address */ } 
       };
       
       $(document).ready(function(evt) {
@@ -86,6 +144,16 @@
          * > A known interface to talk to the simulated memory.
          */
         
+        // Dispatch loop! Should use RequestAnimationFrame?
+        while(true){
+          var op = MMU.rb(Z80._r.pc); // get the byte at the 16-bit address stored in PC
+          Z80._r.pc++;
+          Z80._map[op]();
+          Z80._r.pc &= 0xffff; // ensure PC stays within 16 bits (bitmask)
+          
+          Z80.clock.m += Z80._r.m; // add time to PC clock (TODO still not sure diff btw M and T)
+          Z80.clock.t += Z80._r.t;
+        }
       });
     </script>
   </body>
