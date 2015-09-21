@@ -20,7 +20,27 @@
       <div class='container'>
         <div class='row'>
           <div class='col-md-12'>
-            <h1 class='text-center'>Hello</h1>
+            <h1 class='text-center'>Type assembly here:</h1>
+            <form id="assemble">
+              <div class="form-group">
+                <textarea class="form-control" rows="10"></textarea>
+                <p class="help-text">Assembler output will appear below.</p>
+              </div>
+              <button type="submit" class="btn btn-primary btn-block">Assemble</button>
+            </form>
+          </div>
+        </div>
+        <div class='row'>
+          <div class='col-md-12'>
+            <table class="table" id="assemble-output">
+              <thead>
+                <tr>
+                  <th>Line #</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -33,127 +53,217 @@
       
       });
       
-      var Z80 = { 
-        // Time clock: The Z80 holds two types of clock (m and t) 
-        clock: {m:0, t:0}, 
+      var Memory = {
         
-        // Empty registers, values copied to actual registers on reset
-        _r_zero: {
-          a:0, b:0, c:0, d:0, e:0, h:0, l:0, f:0, // 8-bit registers 
-          pc:0, sp:0, // 16-bit registers 
-          m:0, t:0 // Clock for last instr 
+      };
+      
+      var Instruction = {
+        IMM: 0x00, // immediate
+        ADD: 0x01,
+        SUB: 0x02,
+        MUL: 0x03,
+        DIV: 0x04,
+        JMP: 0x05, // absolute address ...
+        BEQ: 0x06,
+        BNE: 0x07,
+        LOD: 0x08,
+        STO: 0x09,
+        // TODO PC relative addressing?
+        NOP: 0xff
+      };
+      
+      var VM = {
+        stack: [],
+        stackMax: 128,
+        
+        push: function(val){
+          if(this.stack.length >= this.stackMax)
+            throw new Error('Stack overflow!');
+        
+          this.stack.push(val & 0xff);
+        },
+        pop: function(){
+          if(this.stack.length <= 0)
+            throw new Error('Stack underflow!');
+        
+          var val = this.stack.pop();
+          return (val & 0xff);
         },
         
-        /*
-         * Register set.
-         * 
-         * There are four flags (register F) in the Z80:
-         * 
-         * Zero (0x80): Set if the last operation produced a result of 0;
-         * Operation (0x40): Set if the last operation was a subtraction;
-         * Half-carry (0x20): Set if, in the result of the last operation, the lower half of the byte overflowed past 15;
-         * Carry (0x10): Set if the last operation produced a result over 255 (for additions) or under 0 (for subtractions).
-         */
-        _r: { 
-          a:0, b:0, c:0, d:0, e:0, h:0, l:0, f:0, // 8-bit registers 
-          pc:0, sp:0, // 16-bit registers 
-          m:0, t:0 // Clock for last instr 
-        },
-        
-        reset: function(){
-          this._r = $.extend({}, this._r_zero); // clone zeroed registers into actual registers
-        },
-        
-        map: [ // 256 instructions, 0x00 - 0xFF, i.e. a single byte needed for opcode
-          this._ops.NOP,
-          this._ops.LDBCnn,
-          this._ops.LDBCmA,
-          this._ops.INCBC,
-          this._ops.INCr_b
-          // ...
-        ],
-        
-        this._ops: {
-          NOP: function(){},
-          LDBCnn: function(){},
-          LDBCmA: function(){},
-          INCBC: function(){},
-          INCr_b: function(){},
+        interpret: function(bytecode){
+          var instruction, next;
+          var lhs, rhs;
           
-          // Add E to A, leaving result in A (ADD A, E) 
-          ADDr_e: function() { 
-            this._r.a += this._r.e; // Perform addition 
-            this._r.f = 0; // Clear flags 
-            if(!(this._r.a & 255)) this._r.f |= 0x80; // Check for zero 
-            if(this._r.a > 255) this._r.f |= 0x10; // Check for carry 
-            this._r.a &= 255; // Mask to 8-bits 
-            this._r.m = 1; this._r.t = 4; // 1 M-time taken 
-          },
-          // Push registers B and C to the stack (PUSH BC) 
-          PUSHBC: function() { 
-            this._r.sp--; // Drop through the stack 
-            MMU.wb(this._r.sp, this._r.b); // Write B 
-            this._r.sp--; // Drop through the stack 
-            MMU.wb(this._r.sp, this._r.c); // Write C 
-            this._r.m = 3; this._r.t = 12; // 3 M-times taken 
+          for(var i=0; i < bytecode.length; i++){
+            if(i < 0 || i >= bytecode.length)
+              throw new Error('Segmentation fault!');
+            
+            // force all instructions to 1 byte
+            instruction = bytecode[i] & 0xff;
+            if((i+1) < bytecode.length)
+              next = bytecode[i+1] & 0xff;
+            else // must include else, so that previous 'next' val doesn't persist across instructions
+              next = null;
+            
+            // check for well-formed instructions
+            switch(instruction){
+              case Instruction.IMM:
+              case Instruction.JMP:
+              case Instruction.BEQ:
+              case Instruction.BNE:
+              case Instruction.LOD:
+              case Instruction.STO:
+                if(next === null)
+                  throw new Exception('Expected two-byte instruction!');
+            }
+            
+            // execute instructions
+            switch(instruction){
+              default: // TODO must be at end of switch statement?
+                throw new Exception('Unrecognized opcode!');
+              case Instruction.NOP: 
+                i++;
+                break;
+              case Instruction.IMM:
+                this.push(next);
+                i++;
+                break;
+              case Instruction.ADD:
+                rhs = this.pop();
+                lhs = this.pop();
+                this.push(lhs + rhs);
+                break;
+              case Instruction.SUB:
+                rhs = this.pop();
+                lhs = this.pop();
+                this.push(lhs - rhs);
+                break;
+              case Instruction.MUL:
+                rhs = this.pop();
+                lhs = this.pop();
+                this.push(lhs * rhs);
+                break;
+              case Instruction.DIV:
+                rhs = this.pop();
+                lhs = this.pop();
+                this.push(lhs / rhs);
+                break;
+              case Instruction.JMP:
+                // addr = this.pop(); // would allow you to calculate jump addresses ... not needed
+                i = next-1; // -1 since we're automatically incrementing i
+                break;
+              case Instruction.BEQ:
+                rhs = this.pop();
+                lhs = this.pop();
+                if(lhs === rhs)
+                  i = next-1;
+                else
+                  i++; // since we need to skip immediate value
+                break;
+              case Instruction.BNE:
+                rhs = this.pop();
+                lhs = this.pop();
+                if(lhs !== rhs)
+                  i = next-1; 
+                else
+                  i++;
+                break;
+              case Instruction.LOD:
+                if(next < 0 || next >= bytecode.length) // check address since not using PC to access mem
+                  throw new Error('Segmentation fault!');
+                this.push(bytecode[next]);
+                i++;
+                break;
+              case Instruction.STO:
+                if(next < 0 || next >= bytecode.length) // check address since not using PC to access mem
+                  throw new Error('Segmentation fault!');
+                bytecode[next] = this.pop();
+                i++;
+                break;
+            }
           }
         }
       };
       
-      var MMU = {
-        /*
-         * 16-bit address space, for a total memory size of 64K.
-         * All addresses can be represented by: 0xHHLL, H = high, L = low
-         */
-      
-        rb: function(addr) { /* Read 8-bit byte from a given address */ }, 
-        rw: function(addr) { /* Read 16-bit word from a given address */ }, 
-        wb: function(addr, val) { /* Write 8-bit byte to a given address */ }, 
-        ww: function(addr, val) { /* Write 16-bit word to a given address */ } 
+      var AssembleError = function(lineNumber, msg){
+        this.lineNo = lineNumber;
+        this.message = msg;
+      }
+      AssembleError.prototype.toString = function(){
+        return 'LINE <'+this.lineNo+'> '+this.message;
       };
       
-      $(document).ready(function(evt) {
-        // http://imrannazar.com/GameBoy-Emulation-in-JavaScript
+      function assemble(src){
+        var bin = [];
+        var err = [];
+      
+        var lines = src.split('\n');
+        var line, clean, mnemonic, immediate;
         
-        /**
-         * The CPU in the original GameBoy is a modified Zilog Z80, so the following things are pertinent:
-         * 
-         * > The Z80 is an 8-bit chip, so all the internal workings operate on one byte at a time;
-         * > The memory interface can address up to 65,536 bytes (a 16-bit address bus);
-         * > Programs are accessed through the same address bus as normal memory;
-         * > An instruction can be anywhere between one and three bytes.
-         * 
-         * In addition to the PC, other numbers are held inside the CPU that can be used for calculation, 
-         * and they're referred to as registers: A, B, C, D, E, H, and L. Each of them is one byte, so 
-         * each one can hold a value from 0 to 255. Most of the instructions in the Z80 are used to 
-         * handle values in these registers: loading a value from memory into a register, adding or 
-         * subtracting values, and so forth.
-         * 
-         * There are other registers in the Z80, that deal with holding status: the flags register (F), 
-         * whose operation is discussed below; and the stack pointer (SP) which is used alongside the 
-         * PUSH and POP instructions for basic LIFO handling of values.
-         * 
-         * The basic model of the Z80 emulation would therefore require the following components:
-         * 
-         * > An internal state:
-         * > > A structure for retaining the current state of the registers;
-         * > > The amount of time used to execute the last instruction;
-         * > > The amount of time that the CPU has run in total;
-         * > Functions to simulate each instruction;
-         * > A table mapping said functions onto the opcode map;
-         * > A known interface to talk to the simulated memory.
-         */
+        for(var i=0; i < lines.length; i++){
+          line = lines[i];
+          clean = line.replace(/[^A-Za-z0-9 ]/g, '');
+          clean = clean.trim();
         
-        // Dispatch loop! Should use RequestAnimationFrame?
-        while(true){
-          var op = MMU.rb(Z80._r.pc); // get the byte at the 16-bit address stored in PC
-          Z80._r.pc++;
-          Z80._map[op]();
-          Z80._r.pc &= 0xffff; // ensure PC stays within 16 bits (bitmask)
+          if(clean.length === 0) // ignore blank lines
+            continue;
+          if(clean.length === 3) {
+            mnemonic = clean.toUpperCase(); // instruction mnemonic
+            if(!(mnemonic in Instruction)){
+              err.push(new AssembleError(i+1, 'Unknown opcode: "'+mnemonic+'".'));
+              continue;
+            }
           
-          Z80.clock.m += Z80._r.m; // add time to PC clock (TODO still not sure diff btw M and T)
-          Z80.clock.t += Z80._r.t;
+            bin.push(Instruction[mnemonic]);
+          }
+          else if(clean.search(/[A-Za-z]{3}\s+(?:0x[0-9A-Fa-f]+|\d+)$/g) !== -1){ // e.g. MOV 0x12, LOD 562
+            var tokens = /([A-Za-z]{3})\s+(0x[0-9A-Fa-f]+|\d+)$/g.exec(clean);
+            
+            // Check that the opcode actually exists
+            mnemonic = tokens[1].toUpperCase();
+            if(!(mnemonic in Instruction)){
+              err.push(new AssembleError(i+1, 'Unknown opcode: "'+mnemonic+'".'));
+              continue;
+            }
+            
+            // Parse immediate value / address into integer
+            if(tokens[2].indexOf('0x') === 0)
+              immediate = parseInt(tokens[2], 16);
+            else
+              immediate = parseInt(tokens[2], 10);
+            
+            bin.push(Instruction[mnemonic]);
+            bin.push(immediate);
+          }
+          else
+            err.push(new AssembleError(i+1, 'Bad instruction format: "'+line+'".'));
         }
+        if(err.length !== 0)
+          throw err;
+          
+        return bin;
+      }
+            
+      $(document).ready(function(evt) {
+        $('form#assemble').submit(function(evt){
+          evt.preventDefault();
+          $('table#assemble-output > tbody').empty(); // clear our table of errors from previous run
+          
+          var src = $(this).find('textarea').val();
+          try {
+            var bin = assemble(src);
+            console.log(bin);
+          }
+          catch(e){
+            for(var i=0; i < e.length; i++){              
+              var row = $('<tr></tr>');
+              row.append('<th scope="row">'+e[i].lineNo+'</th>');
+              row.append('<td>'+e[i].message+'</td>');
+              
+              $('table#assemble-output > tbody').append(row);
+            }
+          }
+        });
       });
     </script>
   </body>
