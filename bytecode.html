@@ -21,7 +21,26 @@
         <div class='row'>
           <div class='col-md-12'>
             <h1 class='text-center'>Type assembly here:</h1>
-            <textarea class="form-control" id="assembly" rows="10"></textarea>
+            <form id="assemble">
+              <div class="form-group">
+                <textarea class="form-control" rows="10"></textarea>
+                <p class="help-text">Assembler output will appear below.</p>
+              </div>
+              <button type="submit" class="btn btn-primary btn-block">Assemble</button>
+            </form>
+          </div>
+        </div>
+        <div class='row'>
+          <div class='col-md-12'>
+            <table class="table" id="assemble-output">
+              <thead>
+                <tr>
+                  <th>Line #</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -166,25 +185,62 @@
         }
       };
       
+      var AssembleError = function(lineNumber, msg){
+        this.lineNo = lineNumber;
+        this.message = msg;
+      }
+      AssembleError.prototype.toString = function(){
+        return 'LINE <'+this.lineNo+'> '+this.message;
+      };
+      
       function assemble(src){
         var bin = [];
+        var err = [];
       
         var lines = src.split('\n');
         var line, clean;
         for(var i=0; i < lines.length; i++){
           line = lines[i];
           clean = line.replace(/[^A-Za-z0-9 ]/g, '');
-          clean = clean.trim().toUpperCase();
+          clean = clean.trim();
         
+          if(clean.length === 0) // ignore blank lines
+            continue;
           if(clean.length === 3)
             bin.push(Instruction[clean]);
-          else if(clean.matches
+          else if(clean.search(/[A-Za-z]{3}\s+(?:0x[0-9A-Fa-f]+|\d+)$/g) !== -1){ // e.g. MOV 0x12, LOD 562
+            var tokens = /([A-Za-z]{3})\s+(0x[0-9A-Fa-f]+|\d+)$/g.exec(clean);
+            bin.push(tokens[1].toUpperCase()); // instruction mnemonic
+            bin.push(tokens[2]); // immediate value / address
+          }
+          else
+            err.push(new AssembleError(i+1, 'Bad instruction: "'+line+'".'));
         }
+        if(err.length !== 0)
+          throw err;
+          
+        return bin;
       }
             
       $(document).ready(function(evt) {
-        var src = $('textarea#assembly').val();
-        var bin = assemble(src);
+        $('form#assemble').submit(function(evt){
+          evt.preventDefault();
+          $('table#assemble-output > tbody').empty(); // clear our table of errors from previous run
+          
+          var src = $(this).find('textarea').val();
+          try {
+            var bin = assemble(src);
+          }
+          catch(e){
+            for(var i=0; i < e.length; i++){              
+              var row = $('<tr></tr>');
+              row.append('<th scope="row">'+e[i].lineNo+'</th>');
+              row.append('<td>'+e[i].message+'</td>');
+              
+              $('table#assemble-output > tbody').append(row);
+            }
+          }
+        });
       });
     </script>
   </body>
