@@ -198,7 +198,8 @@
         var err = [];
       
         var lines = src.split('\n');
-        var line, clean;
+        var line, clean, mnemonic, immediate;
+        
         for(var i=0; i < lines.length; i++){
           line = lines[i];
           clean = line.replace(/[^A-Za-z0-9 ]/g, '');
@@ -206,15 +207,36 @@
         
           if(clean.length === 0) // ignore blank lines
             continue;
-          if(clean.length === 3)
-            bin.push(Instruction[clean]);
+          if(clean.length === 3) {
+            mnemonic = clean.toUpperCase(); // instruction mnemonic
+            if(!(mnemonic in Instruction)){
+              err.push(new AssembleError(i+1, 'Unknown opcode: "'+mnemonic+'".'));
+              continue;
+            }
+          
+            bin.push(Instruction[mnemonic]);
+          }
           else if(clean.search(/[A-Za-z]{3}\s+(?:0x[0-9A-Fa-f]+|\d+)$/g) !== -1){ // e.g. MOV 0x12, LOD 562
             var tokens = /([A-Za-z]{3})\s+(0x[0-9A-Fa-f]+|\d+)$/g.exec(clean);
-            bin.push(tokens[1].toUpperCase()); // instruction mnemonic
-            bin.push(tokens[2]); // immediate value / address
+            
+            // Check that the opcode actually exists
+            mnemonic = tokens[1].toUpperCase();
+            if(!(mnemonic in Instruction)){
+              err.push(new AssembleError(i+1, 'Unknown opcode: "'+mnemonic+'".'));
+              continue;
+            }
+            
+            // Parse immediate value / address into integer
+            if(tokens[2].indexOf('0x') === 0)
+              immediate = parseInt(tokens[2], 16);
+            else
+              immediate = parseInt(tokens[2], 10);
+            
+            bin.push(Instruction[mnemonic]);
+            bin.push(immediate);
           }
           else
-            err.push(new AssembleError(i+1, 'Bad instruction: "'+line+'".'));
+            err.push(new AssembleError(i+1, 'Bad instruction format: "'+line+'".'));
         }
         if(err.length !== 0)
           throw err;
@@ -230,6 +252,7 @@
           var src = $(this).find('textarea').val();
           try {
             var bin = assemble(src);
+            console.log(bin);
           }
           catch(e){
             for(var i=0; i < e.length; i++){              
