@@ -20,7 +20,8 @@
       <div class='container'>
         <div class='row'>
           <div class='col-md-12'>
-            <h1 class='text-center'>Hello</h1>
+            <h1 class='text-center'>Type assembly here:</h1>
+            <textarea class="form-control" id="assembly" rows="10"></textarea>
           </div>
         </div>
       </div>
@@ -47,8 +48,9 @@
         BEQ: 0x06,
         BNE: 0x07,
         LOD: 0x08,
-        STO: 0x09
+        STO: 0x09,
         // TODO PC relative addressing?
+        NOP: 0xff
       };
       
       var VM = {
@@ -100,6 +102,9 @@
             switch(instruction){
               default: // TODO must be at end of switch statement?
                 throw new Exception('Unrecognized opcode!');
+              case Instruction.NOP: 
+                i++;
+                break;
               case Instruction.IMM:
                 this.push(next);
                 i++;
@@ -160,9 +165,26 @@
           }
         }
       };
+      
+      function assemble(src){
+        var bin = [];
+      
+        var lines = src.split('\n');
+        var line, clean;
+        for(var i=0; i < lines.length; i++){
+          line = lines[i];
+          clean = line.replace(/[^A-Za-z0-9 ]/g, '');
+          clean = clean.trim().toUpperCase();
+        
+          if(clean.length === 3)
+            bin.push(Instruction[clean]);
+          else if(clean.matches
+        }
+      }
             
       $(document).ready(function(evt) {
-        
+        var src = $('textarea#assembly').val();
+        var bin = assemble(src);
       });
     </script>
   </body>
