@@ -231,6 +231,11 @@
               immediate = parseInt(tokens[2], 16);
             else
               immediate = parseInt(tokens[2], 10);
+              
+            if(immediate < -128 || immediate > 127){
+              err.push(new AssembleError(i+1, 'Immediate value too large for (signed) byte: "'+immediate+'".'));
+              continue;
+            }
             
             bin.push(Instruction[mnemonic]);
             bin.push(immediate);
