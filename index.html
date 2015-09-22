@@ -202,7 +202,7 @@
         
         for(var i=0; i < lines.length; i++){
           line = lines[i];
-          clean = line.replace(/[^A-Za-z0-9 ]/g, '');
+          clean = line.replace(/[^A-Za-z0-9- ]/g, '');
           clean = clean.trim();
         
           if(clean.length === 0) // ignore blank lines
@@ -216,9 +216,14 @@
           
             bin.push(Instruction[mnemonic]);
           }
-          else if(clean.search(/[A-Za-z]{3}\s+(?:0x[0-9A-Fa-f]+|\d+)$/g) !== -1){ // e.g. MOV 0x12, LOD 562
-            var tokens = /([A-Za-z]{3})\s+(0x[0-9A-Fa-f]+|\d+)$/g.exec(clean);
+          else {
+            var tokens = /^([A-Za-z]{3})\s+(.*)$/g.exec(clean);
             
+            if(tokens === null){
+              err.push(new AssembleError(i+1, 'Bad instruction format: "'+line+'".'));
+              continue;
+            }
+
             // Check that the opcode actually exists
             mnemonic = tokens[1].toUpperCase();
             if(!(mnemonic in Instruction)){
@@ -226,22 +231,21 @@
               continue;
             }
             
-            // Parse immediate value / address into integer
-            if(tokens[2].indexOf('0x') === 0)
-              immediate = parseInt(tokens[2], 16);
-            else
-              immediate = parseInt(tokens[2], 10);
-              
+            if(tokens[2].search(/^(-?0x[0-9A-Fa-f]+|-?\d+)$/g) === -1){
+              err.push(new AssembleError(i+1, 'Bad immediate format: "'+tokens[2]+'".'));
+              continue;
+            }
+          
+            immediate = parseInt(tokens[2]);
+            
             if(immediate < -128 || immediate > 127){
-              err.push(new AssembleError(i+1, 'Immediate value too large for (signed) byte: "'+immediate+'".'));
+              err.push(new AssembleError(i+1, 'Immediate value will not fit in (signed) byte: "'+immediate+'".'));
               continue;
             }
             
             bin.push(Instruction[mnemonic]);
             bin.push(immediate);
           }
-          else
-            err.push(new AssembleError(i+1, 'Bad instruction format: "'+line+'".'));
         }
         if(err.length !== 0)
           throw err;
