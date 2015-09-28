@@ -20,7 +20,12 @@
       <div class='container'>
         <div class='row'>
           <div class='col-md-12'>
-            <h1 class='text-center'>Type assembly here:</h1>
+            <h1 class='text-center'>Stack Machine</h1>
+          </div>
+        </div>
+        <div class='row'>
+          <div class='col-md-6'>
+            <h2 class='text-center'>Assembly</h2>
             <form id="assemble">
               <div class="form-group">
                 <textarea class="form-control" rows="10"></textarea>
@@ -28,10 +33,6 @@
               </div>
               <button type="submit" class="btn btn-primary btn-block">Assemble</button>
             </form>
-          </div>
-        </div>
-        <div class='row'>
-          <div class='col-md-12'>
             <table class="table" id="assemble-output">
               <thead>
                 <tr>
@@ -41,6 +42,15 @@
               </thead>
               <tbody></tbody>
             </table>
+          </div>
+          <div class='col-md-6'>
+            <h2 class='text-center'>Memory</h2>
+            <div class="input-group">
+              <input type="text" class="form-control" placeholder="Append text to memory...">
+              <span class="input-group-btn">
+                <button class="btn btn-default" type="button">Append</button>
+              </span>
+            </div><!-- /input-group -->
           </div>
         </div>
       </div>
@@ -54,7 +64,29 @@
       });
       
       var Memory = {
+        length: 65536, // max bytes addressable by 16-bit word, = 64K bytes
+        bank: new ArrayBuffer(this.length),
+      
+        readWord: function(addr){
+          if(addr < 0 || addr >= this.length )
+            throw new Error('Memory access violation!');
+            
+          var view = new DataView(this.bank, addr, 2);
+          return view.getUint16(0);
+        },
+        readByte: function(addr){
         
+        },
+        writeWord: function(addr, val){
+          if(addr < 0 || addr >= this.length )
+            throw new Error('Memory access violation!');
+            
+          var view = new DataView(this.bank, addr, 2);
+          view.setInt16(val);
+        },
+        writeByte: function(addr, val){
+        
+        }
       };
       
       var Instruction = {
@@ -169,15 +201,11 @@
                   i++;
                 break;
               case Instruction.LOD:
-                if(next < 0 || next >= bytecode.length) // check address since not using PC to access mem
-                  throw new Error('Segmentation fault!');
-                this.push(bytecode[next]);
+                this.push(Memory.readWord(next));
                 i++;
                 break;
               case Instruction.STO:
-                if(next < 0 || next >= bytecode.length) // check address since not using PC to access mem
-                  throw new Error('Segmentation fault!');
-                bytecode[next] = this.pop();
+                Memory.writeWord(next, this.pop());
                 i++;
                 break;
             }
@@ -261,7 +289,7 @@
                 continue;
             }
             
-            // Signed 16 bits: -0x8000 to 0x7fff. Still want to permit unsigned addresses.
+            // Signed 16 bits: -0x8000 to 0x7fff. Still want to permit unsigned (absolute) addresses.
             if(immediate < -0x8000 || immediate > 0xffff){
               err.push(new AssembleError(i+1, 'Immediate value will not fit in word (16 bits): "'+immediate+'".'));
               continue;              
@@ -276,6 +304,39 @@
           
         return bin;
       }
+      
+      /** 
+       * Find the length, in bytes, of the given program.
+       * Program is assumed to be an untyped JS array of 
+       * integers.
+       */
+      function calcLen(program){
+        var byteCount = 0;
+        var hasImm = false;
+        
+        for(var i=0; i < program.length; i++){
+          if(hasImm){
+            byteCount+=2;
+            hasImm = false;
+            continue;
+          }
+
+          switch(Instruction[program[i]]){
+            case Instruction.IMM:
+            case Instruction.JMP:
+            case Instruction.BEQ:
+            case Instruction.BNE:
+            case Instruction.LOD:
+            case Instruction.STO:
+              // multi-byte instructions
+              hasImm = true;
+          }
+          
+          byteCount++;
+        }
+        
+        return byteCount;
+      }
             
       $(document).ready(function(evt) {
         $('form#assemble').submit(function(evt){
@@ -283,9 +344,42 @@
           $('table#assemble-output > tbody').empty(); // clear our table of errors from previous run
           
           var src = $(this).find('textarea').val();
+          
+          // Assemble the program segment, load program & data segments into memory, and start execution
           try {
-            var bin = assemble(src);
-            console.log(bin);
+            var program = assemble(src); // returns an untyped array of natively-sized JS integers.
+            var programLen = calcLen(program);
+            
+            // Load program segment into memory
+            var programSegment = new DataView(Memory.bank, 0, programLen); // buffer, offset, length
+            
+            var byteI = 0;
+            var hasImm = false;
+            
+            for(var i=0; i < program.length; i++){
+              if(hasImm){
+                programSegment.setInt16(byteI, program[i], false); // big endian
+                byteI+=2;
+                hasImm = false;
+                continue;
+              }
+
+              switch(Instruction[program[i]]){
+                case Instruction.IMM:
+                case Instruction.JMP:
+                case Instruction.BEQ:
+                case Instruction.BNE:
+                case Instruction.LOD:
+                case Instruction.STO:
+                  // multi-byte instructions
+                  hasImm = true;
+              }
+              
+              programSegment.setUint8(byteI, program[i]);
+              byteI++;
+            }
+            
+            // Append a data segment to memory
           }
           catch(e){
             for(var i=0; i < e.length; i++){              
