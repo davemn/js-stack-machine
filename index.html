@@ -27,9 +27,8 @@
           <div class='col-md-6'>
             <h2 class='text-center'>Assembly</h2>
             <form id="assemble">
-              <div class="form-group">
-                <textarea class="form-control" rows="10"></textarea>
-                <p class="help-text">Assembler output will appear below.</p>
+              <div class='editor-container'>
+                <div id="editor-asm"></div>
               </div>
               <button type="submit" class="btn btn-primary btn-block">Assemble</button>
             </form>
@@ -58,6 +57,7 @@
     <!-- Placed at the end of the document so the pages load faster -->
     <script type="text/javascript" src="bower_components/jquery/dist/jquery.js"></script>
     <script type="text/javascript" src="bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.0/ace.js" charset="utf-8"></script>
     <script>
       $(window).load(function() {
       
@@ -339,11 +339,42 @@
       }
             
       $(document).ready(function(evt) {
+        var editor = ace.edit('editor-asm');
+        var Range = ace.require('ace/range').Range;
+        
+        editor.setTheme('ace/theme/eclipse');
+        editor.getSession().setMode('ace/mode/assembly_x86');
+        
+        editor.setShowPrintMargin(false);
+				editor.getSession().setTabSize(2);
+				editor.getSession().setUseSoftTabs(true);
+                
+        // ===
+        
+        var curError = -1;
+        
+        $('table#assemble-output > tbody').on('mouseenter', 'tr', function(evt){
+          var lineNo = parseInt($(this).children('th').text(), 10);
+          var msg = $(this).children('td').text();
+          
+          curError = editor.getSession().addMarker(
+            new Range(lineNo-1,0,lineNo,0), // start row, start column, end ...
+            'assemble-error',
+            'line'
+          );
+        });
+        
+        $('table#assemble-output > tbody').on('mouseleave', 'tr', function(evt){
+          editor.getSession().removeMarker(curError);
+        });
+        
+        // ===
+      
         $('form#assemble').submit(function(evt){
           evt.preventDefault();
           $('table#assemble-output > tbody').empty(); // clear our table of errors from previous run
           
-          var src = $(this).find('textarea').val();
+          var src = editor.getValue();
           
           // Assemble the program segment, load program & data segments into memory, and start execution
           try {
@@ -381,7 +412,7 @@
             
             // Append a data segment to memory
           }
-          catch(e){
+          catch(e){          
             for(var i=0; i < e.length; i++){              
               var row = $('<tr></tr>');
               row.append('<th scope="row">'+e[i].lineNo+'</th>');
