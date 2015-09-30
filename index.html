@@ -50,6 +50,15 @@
                 <button class="btn btn-default" type="button">Append</button>
               </span>
             </div><!-- /input-group -->
+            <style scoped>
+              .editor-container {
+                width: 70%;
+              }
+            </style>
+            <div class='editor-container'>
+              <div id="editor-mem"></div>
+            </div>
+            <div class='editor-sidebar'></div>
           </div>
         </div>
       </div>
@@ -338,17 +347,74 @@
         return byteCount;
       }
             
+      function stringSplice(str, idx, count, add){
+        return str.slice(0,idx) + (add || '') + str.slice(idx+count);
+      }
+      
       $(document).ready(function(evt) {
-        var editor = ace.edit('editor-asm');
+        // - Initialize assembly program editor ---
         var Range = ace.require('ace/range').Range;
+        var Document = ace.require('ace/document').Document;
         
+        var editor = ace.edit('editor-asm');
         editor.setTheme('ace/theme/eclipse');
         editor.getSession().setMode('ace/mode/assembly_x86');
         
         editor.setShowPrintMargin(false);
 				editor.getSession().setTabSize(2);
 				editor.getSession().setUseSoftTabs(true);
+        
+        // - Initialize memory editor ---
+        var memGui = ace.edit('editor-mem');
+        
+        // memGui.getSession().setMode('ace/mode/assembly_x86');
+        memGui.setShowPrintMargin(false);
+				memGui.getSession().setTabSize(2);
+				memGui.getSession().setUseSoftTabs(true);
+        memGui.$blockScrolling = Infinity; // suppress warnings about scrolling
+        
+        // custom gutter, ala http://stackoverflow.com/questions/28311086/modify-the-gutter-of-ajax-org-cloud9-editor-ace-editor
+        memGui.session.gutterRenderer = {
+          getWidth: function(session, lastLineNumber, config) {          
+            return 4 * config.characterWidth;
+          },
+          getText: function(session, row) {
+            // Convert to padded hexadecimal
+            var hex = row.toString(16).toUpperCase();
+            return ('0000'+hex).substring(hex.length);
+          }
+        };
                 
+        // ===
+        
+        var curMemText = '';
+        
+        $('#editor-mem').on('keypress', '.ace_text-input', function(evt){
+          evt.preventDefault(); // prevent Ace from doing further key event handling
+        
+          var input = String.fromCharCode(evt.which);
+          var cursor = memGui.getCursorPosition();
+          
+          var cleanInput = input.replace(/[^A-Fa-f0-9]/g,'');
+          if(cleanInput.length === 0)
+            cleanInput = '-';
+            
+          var oldDoc = memGui.getValue();
+          oldDoc = oldDoc.replace(/\n/g,''); // remove newlines if this is a multiline input
+          
+          // var newDoc = oldDoc.slice(0,cursor.column) + cleanInput + oldDoc.slice(cursor.column+1);
+          var newDoc = stringSplice(oldDoc, (cursor.row*16)+cursor.column, 1, cleanInput);
+          
+          var newDocWrapArr = newDoc.match(/.{1,16}/g) || [];
+          var newDocWrap = newDocWrapArr.reduce(function(prev,cur){
+            if(prev.length === 0)
+              return cur;
+            return prev + '\n' + cur;
+          },'');
+          
+          memGui.setValue(newDocWrap, 1); // set the document text to the spliced string, and move the cursor to the end
+        });
+        
         // ===
         
         var curError = -1;
