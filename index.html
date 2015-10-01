@@ -20,12 +20,12 @@
       <div class='container'>
         <div class='row'>
           <div class='col-md-12'>
-            <h1 class='text-center'>Stack Machine</h1>
+            <!-- <h1 class='text-center'>Stack Machine</h1> -->
           </div>
         </div>
         <div class='row'>
           <div class='col-md-6'>
-            <h2 class='text-center'>Assembly</h2>
+            <!-- <h2 class='text-center'>Assembly</h2> -->
             <form id="assemble">
               <div class='editor-container'>
                 <div id="editor-asm"></div>
@@ -43,22 +43,25 @@
             </table>
           </div>
           <div class='col-md-6'>
-            <h2 class='text-center'>Memory</h2>
+            <!-- <h2 class='text-center'>Memory</h2> -->
             <div class="input-group">
               <input type="text" class="form-control" placeholder="Append text to memory...">
               <span class="input-group-btn">
                 <button class="btn btn-default" type="button">Append</button>
               </span>
             </div><!-- /input-group -->
-            <style scoped>
-              .editor-container {
-                width: 70%;
-              }
-            </style>
-            <div class='editor-container'>
-              <div id="editor-mem"></div>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="editor-container">
+                  <div id="editor-mem"></div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="editor-container">
+                  <div id="editor-mem-ascii"></div>
+                </div>
+              </div>
             </div>
-            <div class='editor-sidebar'></div>
           </div>
         </div>
       </div>
@@ -91,7 +94,7 @@
             throw new Error('Memory access violation!');
             
           var view = new DataView(this.bank, addr, 2);
-          view.setInt16(val);
+          view.setInt16(0, val);
         },
         writeByte: function(addr, val){
         
@@ -187,7 +190,7 @@
               case Instruction.DIV:
                 rhs = this.pop();
                 lhs = this.pop();
-                this.push(lhs / rhs);
+                this.push(lhs/rhs | 0); // integer division, rounds towards 0 (unlike Math.floor)
                 break;
               case Instruction.JMP:
                 // addr = this.pop(); // would allow you to calculate jump addresses ... not needed
@@ -351,6 +354,33 @@
         return str.slice(0,idx) + (add || '') + str.slice(idx+count);
       }
       
+      function stringWrap(str, colLen){
+        var wrapArr = str.match(new RegExp('.{1,'+colLen+'}','g')) || [];
+        var wrap = wrapArr.reduce(function(prev,cur){
+          if(prev.length === 0)
+            return cur;
+          return prev + '\n' + cur;
+        },'');
+        
+        return wrap;
+      }
+      
+      // Pad a string with the PADWITH characters, to a length 
+      // that is a multiple of MULTIPLE.
+      function stringRPadToMultiple(str, multiple, padWith){
+        var strPadded;
+        var noPadding = (str.length % multiple) === 0;
+        
+        if(noPadding)
+          strPadded = str;
+        else {
+          var paddedLength = str.length + multiple - (str.length % multiple);
+          strPadded = (str + Array(multiple+1).join(padWith)).substring(0,paddedLength);
+        }
+        
+        return strPadded;
+      }
+      
       $(document).ready(function(evt) {
         // - Initialize assembly program editor ---
         var Range = ace.require('ace/range').Range;
@@ -384,11 +414,46 @@
             return ('0000'+hex).substring(hex.length);
           }
         };
-                
+        
+        // - Initialize ASCII memory editor ---
+        var asciiMemGui = ace.edit('editor-mem-ascii');
+        
+        asciiMemGui.setShowPrintMargin(false);
+				asciiMemGui.getSession().setTabSize(2);
+				asciiMemGui.getSession().setUseSoftTabs(true);
+        asciiMemGui.renderer.setShowGutter(false);
+        asciiMemGui.$blockScrolling = Infinity; // suppress warnings about scrolling
+        
         // ===
         
-        var curMemText = '';
+        // Modify the ASCII view when the hex view changes
+        $('#editor-mem-ascii').on('editor-sync', function(evt, cursor, hexInput){
+          // console.log(cursor);
+          // console.log(hexInput);
         
+          // cursor = position of cursor before last edit
+          var asciiCol = Math.floor(cursor.column/2);
+          
+          var oldDoc = asciiMemGui.getValue();
+          oldDoc = oldDoc.replace(/\n/g,''); // remove newlines if this is a multiline input
+          
+          var cleanInput = null;
+          if(hexInput < 97 || hexInput > 122)
+            cleanInput = '-';
+          else
+            cleanInput = String.fromCharCode(hexInput);
+          
+          var newDoc = stringSplice(oldDoc, (cursor.row*8)+asciiCol, 1, cleanInput);
+          var newDocPadded = stringRPadToMultiple(newDoc, 8, '.');
+          var newDocWrap = stringWrap(newDocPadded, 8);
+          
+          asciiMemGui.setValue(newDocWrap, 1); // set the document text to the spliced string, and move the cursor to the end
+          
+          // asciiMemGui.clearSelection();
+          // asciiMemGui.moveCursorTo(cursor.row, asciiCol);
+        });
+        
+        // Substitute chars invalid for hex view, wrap hex view to 16 columns
         $('#editor-mem').on('keypress', '.ace_text-input', function(evt){
           evt.preventDefault(); // prevent Ace from doing further key event handling
         
@@ -397,23 +462,79 @@
           
           var cleanInput = input.replace(/[^A-Fa-f0-9]/g,'');
           if(cleanInput.length === 0)
-            cleanInput = '-';
+            cleanInput = '0';
             
           var oldDoc = memGui.getValue();
           oldDoc = oldDoc.replace(/\n/g,''); // remove newlines if this is a multiline input
           
-          // var newDoc = oldDoc.slice(0,cursor.column) + cleanInput + oldDoc.slice(cursor.column+1);
           var newDoc = stringSplice(oldDoc, (cursor.row*16)+cursor.column, 1, cleanInput);
           
-          var newDocWrapArr = newDoc.match(/.{1,16}/g) || [];
-          var newDocWrap = newDocWrapArr.reduce(function(prev,cur){
-            if(prev.length === 0)
-              return cur;
-            return prev + '\n' + cur;
-          },'');
+          // Pad the edited doc with zeroes, to a multiple of 16 chars
+          var newDocPadded = stringRPadToMultiple(newDoc, 16, '0');
+          
+          var newDocWrap = stringWrap(newDocPadded,16);
           
           memGui.setValue(newDocWrap, 1); // set the document text to the spliced string, and move the cursor to the end
+          
+          // Move the cursor to the new edit point
+          
+          memGui.clearSelection();
+          if(cursor.column === 16){
+            memGui.scrollToLine(cursor.row + 1)
+            memGui.moveCursorTo(cursor.row+1, 1); // row, col
+          }
+          else {
+            memGui.scrollToLine(cursor.row)
+            memGui.moveCursorTo(cursor.row, cursor.column+1);
+          }
+          
+          // Trigger a sync with the ASCII view, passing along info about this edit
+          
+          var cursorClone = $.extend({}, cursor);
+          var hexStr = '';
+          var hex = -1;
+          
+          if((cursor.row*16 + cursor.column) % 2 === 0){ // edited the lowest nybble of the byte
+            hexStr = newDocPadded[cursor.row*16 + cursor.column] + newDocPadded[cursor.row*16 + cursor.column + 1];
+          }
+          else { // edited the highest nybble of the byte
+            hexStr = newDocPadded[cursor.row*16 + cursor.column - 1] + newDocPadded[cursor.row*16 + cursor.column];
+          }
+          hex = parseInt(hexStr,16);
+          
+          $('#editor-mem-ascii').trigger('editor-sync', [cursorClone, hex]);
         });
+        
+        // ===
+                
+        // $('#editor-mem-ascii').on('keypress', '.ace_text-input', function(evt){
+        //   console.log(asciiMemGui.getCursorPosition());
+        // });
+        // 
+        // $('#editor-mem-ascii').on('keypress', '.ace_text-input', function(evt){
+        //   evt.preventDefault(); // prevent Ace from doing further key event handling
+        // 
+        //   var input = String.fromCharCode(evt.which);
+        //   var cursor = asciiMemGui.getCursorPosition();
+        //   
+        //   var cleanInput = input.replace(/[^A-Za-z]/g,'');
+        //   if(cleanInput.length === 0)
+        //     cleanInput = '-';
+        //     
+        //   var oldDoc = asciiMemGui.getValue();
+        //   oldDoc = oldDoc.replace(/\n/g,''); // remove newlines if this is a multiline input
+        //   
+        //   var newDoc = stringSplice(oldDoc, (cursor.row*8)+cursor.column, 1, cleanInput);
+        //   
+        //   var newDocWrapArr = newDoc.match(/.{1,8}/g) || [];
+        //   var newDocWrap = newDocWrapArr.reduce(function(prev,cur){
+        //     if(prev.length === 0)
+        //       return cur;
+        //     return prev + '\n' + cur;
+        //   },'');
+        //   
+        //   asciiMemGui.setValue(newDocWrap, 1); // set the document text to the spliced string, and move the cursor to the end
+        // });
         
         // ===
         
