@@ -439,7 +439,7 @@
           
           var cleanInput = null;
           if(hexInput < 97 || hexInput > 122)
-            cleanInput = '-';
+            cleanInput = '.';
           else
             cleanInput = String.fromCharCode(hexInput);
           
@@ -449,8 +449,17 @@
           
           asciiMemGui.setValue(newDocWrap, 1); // set the document text to the spliced string, and move the cursor to the end
           
-          // asciiMemGui.clearSelection();
-          // asciiMemGui.moveCursorTo(cursor.row, asciiCol);
+          // Move the cursor to the new edit point
+          
+          asciiMemGui.clearSelection();
+          if(asciiCol === 8){
+            asciiMemGui.scrollToLine(cursor.row + 1)
+            asciiMemGui.moveCursorTo(cursor.row+1, 1); // row, col
+          }
+          else {
+            asciiMemGui.scrollToLine(cursor.row)
+            asciiMemGui.moveCursorTo(cursor.row, asciiCol+1);
+          }
         });
         
         // Substitute chars invalid for hex view, wrap hex view to 16 columns
