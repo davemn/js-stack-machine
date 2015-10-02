@@ -427,9 +427,9 @@
         // ===
         
         // Modify the ASCII view when the hex view changes
-        $('#editor-mem-ascii').on('editor-sync', function(evt, cursor, hexInput){
+        $('#editor-mem-ascii').on('editor-sync', function(evt, cursor, charCode){
           // console.log(cursor);
-          // console.log(hexInput);
+          // console.log(charCode);
         
           // cursor = position of cursor before last edit
           var asciiCol = Math.floor(cursor.column/2);
@@ -438,10 +438,10 @@
           oldDoc = oldDoc.replace(/\n/g,''); // remove newlines if this is a multiline input
           
           var cleanInput = null;
-          if(hexInput < 97 || hexInput > 122)
+          if(charCode < 97 || charCode > 122)
             cleanInput = '.';
           else
-            cleanInput = String.fromCharCode(hexInput);
+            cleanInput = String.fromCharCode(charCode);
           
           var newDoc = stringSplice(oldDoc, (cursor.row*8)+asciiCol, 1, cleanInput);
           var newDocPadded = stringRPadToMultiple(newDoc, 8, '.');
@@ -515,35 +515,77 @@
         });
         
         // ===
-                
-        // $('#editor-mem-ascii').on('keypress', '.ace_text-input', function(evt){
-        //   console.log(asciiMemGui.getCursorPosition());
-        // });
-        // 
-        // $('#editor-mem-ascii').on('keypress', '.ace_text-input', function(evt){
-        //   evt.preventDefault(); // prevent Ace from doing further key event handling
-        // 
-        //   var input = String.fromCharCode(evt.which);
-        //   var cursor = asciiMemGui.getCursorPosition();
-        //   
-        //   var cleanInput = input.replace(/[^A-Za-z]/g,'');
-        //   if(cleanInput.length === 0)
-        //     cleanInput = '-';
-        //     
-        //   var oldDoc = asciiMemGui.getValue();
-        //   oldDoc = oldDoc.replace(/\n/g,''); // remove newlines if this is a multiline input
-        //   
-        //   var newDoc = stringSplice(oldDoc, (cursor.row*8)+cursor.column, 1, cleanInput);
-        //   
-        //   var newDocWrapArr = newDoc.match(/.{1,8}/g) || [];
-        //   var newDocWrap = newDocWrapArr.reduce(function(prev,cur){
-        //     if(prev.length === 0)
-        //       return cur;
-        //     return prev + '\n' + cur;
-        //   },'');
-        //   
-        //   asciiMemGui.setValue(newDocWrap, 1); // set the document text to the spliced string, and move the cursor to the end
-        // });
+        
+        // Modify the hex view when the ascii view changes
+        $('#editor-mem').on('editor-sync', function(evt, cursor, charCode){
+          // cursor = position of cursor before last edit
+          var hexCol = cursor.column*2;
+          
+          var oldDoc = memGui.getValue();
+          oldDoc = oldDoc.replace(/\n/g,''); // remove newlines if this is a multiline input
+          
+          // Convert character code to 2-character hex string
+          var hex = charCode.toString(16);
+          var cleanInput = ('00'+hex).substring(hex.length);
+          
+          // Insert hex in appropriate location, and pad the edited doc with filler char, to a multiple of 8 chars
+          var newDoc = stringSplice(oldDoc, (cursor.row*16)+hexCol, 2, cleanInput);
+          var newDocPadded = stringRPadToMultiple(newDoc, 16, '0');
+          var newDocWrap = stringWrap(newDocPadded, 16);
+          
+          memGui.setValue(newDocWrap, 1); // set the document text to the spliced string, and move the cursor to the end
+          
+          // Move the cursor to the new edit point
+          memGui.clearSelection();
+          if(hexCol === 16){
+            memGui.scrollToLine(cursor.row + 1)
+            memGui.moveCursorTo(cursor.row+1, 2); // row, col
+          }
+          else {
+            memGui.scrollToLine(cursor.row)
+            memGui.moveCursorTo(cursor.row, hexCol+2);
+          }
+        });
+        
+        // Substitute chars invalid for ascii view, wrap ascii view to 8 columns
+        $('#editor-mem-ascii').on('keypress', '.ace_text-input', function(evt){
+          evt.preventDefault(); // prevent Ace from doing further key event handling
+        
+          var input = String.fromCharCode(evt.which);
+          var cursor = asciiMemGui.getCursorPosition();
+          
+          var cleanInput = input.replace(/[^A-Za-z0-9 ]/g,'');
+          if(cleanInput.length === 0)
+            cleanInput = '.';
+            
+          var oldDoc = asciiMemGui.getValue();
+          oldDoc = oldDoc.replace(/\n/g,''); // remove newlines if this is a multiline input
+          
+          var newDoc = stringSplice(oldDoc, (cursor.row*8)+cursor.column, 1, cleanInput);
+          
+          // Pad the edited doc with filler char, to a multiple of 8 chars
+          var newDocPadded = stringRPadToMultiple(newDoc, 8, '.');
+          var newDocWrap = stringWrap(newDocPadded,8);
+          
+          asciiMemGui.setValue(newDocWrap, 1); // set the document text to the spliced string, and move the cursor to the end
+          
+          // Move the cursor to the new edit point
+          asciiMemGui.clearSelection();
+          if(cursor.column === 8){
+            asciiMemGui.scrollToLine(cursor.row + 1)
+            asciiMemGui.moveCursorTo(cursor.row+1, 1); // row, col
+          }
+          else {
+            asciiMemGui.scrollToLine(cursor.row)
+            asciiMemGui.moveCursorTo(cursor.row, cursor.column+1);
+          }
+          
+          // Trigger a sync with the hex view, passing along info about this edit
+          var cursorClone = $.extend({}, cursor);
+          var hex = cleanInput.charCodeAt(0);
+          
+          $('#editor-mem').trigger('editor-sync', [cursorClone, hex]);
+        });
         
         // ===
         
