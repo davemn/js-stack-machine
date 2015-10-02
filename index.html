@@ -75,9 +75,11 @@
       
       });
       
+      var MAX_ADDRESSABLE = 65536;
+      
       var Memory = {
-        length: 65536, // max bytes addressable by 16-bit word, = 64K bytes
-        bank: new ArrayBuffer(this.length),
+        length: MAX_ADDRESSABLE, // max bytes addressable by 16-bit word, = 64K bytes
+        bank: new ArrayBuffer(MAX_ADDRESSABLE),
       
         readWord: function(addr){
           if(addr < 0 || addr >= this.length )
@@ -101,7 +103,7 @@
         }
       };
       
-      var Instruction = {
+      var Instruction = { // Lookup opcode by mnemonic
         IMM: 0x00, // immediate
         ADD: 0x01,
         SUB: 0x02,
@@ -115,6 +117,16 @@
         // TODO PC relative addressing?
         NOP: 0xff
       };
+      
+      var WideOpcode = {}; // Opcodes requiring an immediate / address value in the adjacent byte(s)
+      WideOpcode[Instruction.IMM] = true;
+      WideOpcode[Instruction.JMP] = true;
+      WideOpcode[Instruction.BEQ] = true;
+      WideOpcode[Instruction.BNE] = true;
+      WideOpcode[Instruction.LOD] = true;
+      WideOpcode[Instruction.STO] = true;
+      
+      // ===
       
       var VM = {
         stack: [],
@@ -332,16 +344,10 @@
             hasImm = false;
             continue;
           }
-
-          switch(Instruction[program[i]]){
-            case Instruction.IMM:
-            case Instruction.JMP:
-            case Instruction.BEQ:
-            case Instruction.BNE:
-            case Instruction.LOD:
-            case Instruction.STO:
-              // multi-byte instructions
-              hasImm = true;
+          
+          // Check for multi-byte instructions
+          if(program[i] in WideOpcode){
+            hasImm = true;
           }
           
           byteCount++;
@@ -632,21 +638,28 @@
                 hasImm = false;
                 continue;
               }
-
-              switch(Instruction[program[i]]){
-                case Instruction.IMM:
-                case Instruction.JMP:
-                case Instruction.BEQ:
-                case Instruction.BNE:
-                case Instruction.LOD:
-                case Instruction.STO:
-                  // multi-byte instructions
-                  hasImm = true;
+              
+              // multi-byte instructions
+              if(program[i] in WideOpcode){
+                hasImm = true;
               }
               
               programSegment.setUint8(byteI, program[i]);
               byteI++;
             }
+            
+            // - DEBUG --
+            console.log('Program size (bytes): ' + programLen);
+            var progHex = '';
+            for(i=0; i < programSegment.byteLength; i++){
+              // Convert byte to 2-character hex string
+              var hex = programSegment.getUint8(i).toString(16);
+              var hexStr = ('00'+hex).substring(hex.length);
+              
+              progHex += hexStr + ' ';
+            }
+            console.log(progHex);
+            // - DEBUG --
             
             // Append a data segment to memory
           }
