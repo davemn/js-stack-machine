@@ -112,11 +112,8 @@
     var oldDoc = this.asciiMemGui.getValue();
     oldDoc = oldDoc.replace(/\n/g,''); // remove newlines if this is a multiline input
     
-    var cleanInput = null;
-    if(charCode < 97 || charCode > 122)
-      cleanInput = '.';
-    else
-      cleanInput = String.fromCharCode(charCode);
+    var cleanInput = String.fromCharCode(charCode);
+    cleanInput = cleanInput.replace(/[^A-Za-z ]/g,'.');
     
     var newDoc = stringSplice(oldDoc, (cursor.row*8)+asciiCol, 1, cleanInput);
     var newDocPadded = stringRPadToMultiple(newDoc, 8, '.');
