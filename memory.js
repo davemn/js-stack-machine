@@ -95,4 +95,18 @@
     }
   };
   
+  exports.asString = function(offset, byteLen){
+    var out = '';
+    
+    for(var i=0; i < byteLen; i++){
+      // Convert byte to 2-character hex string
+      var hex = this.readByte(offset+i).toString(16);
+      var hexStr = ('00'+hex).substring(hex.length);
+      
+      out += hexStr + ' ';
+    }
+    
+    return out;
+  };
+  
 })(window.Memory = {});
