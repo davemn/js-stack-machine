@@ -69,6 +69,12 @@
             <pre id="memory-view">Waiting for input ...</pre>
           </div>
         </div>
+        <div class='row'>
+          <div class='col-md-6 col-md-offset-3'>
+            <h2 class='text-center'>Final Memory</h2>
+            <pre id="final-memory">Output here ...</pre>
+          </div>
+        </div>
       </div>
     </section>
     <!-- Placed at the end of the document so the pages load faster -->
@@ -110,6 +116,7 @@
       var VM = {
         stack: [],
         stackMax: 128,
+        pc: 0, // program counter
         
         push: function(val){
           if(this.stack.length >= this.stackMax)
@@ -125,19 +132,16 @@
           return (val & 0xffff);
         },
         
-        interpret: function(bytecode){
-          var instruction, next;
+        interpret: function(){
+          var instruction = 0, next;
           var lhs, rhs;
           
-          for(var i=0; i < bytecode.length; i++){
-            if(i < 0 || i >= bytecode.length)
-              throw new Error('Segmentation fault!');
-            
+          while(instruction !== Instruction.NOP){
             // force all instructions to 1 byte, and immediates / addresses to 2
-            instruction = bytecode[i] & 0xff;
-            if((i+1) < bytecode.length)
-              next = bytecode[i+1] & 0xffff;
-            else // must include else, so that previous 'next' val doesn't persist across instructions
+            instruction = Memory.readByte(this.pc);
+            if((this.pc+1) < Memory.length-1) // only read an entire word if there's a word's worth of address space left
+              next = Memory.readWord(this.pc+1);
+            else
               next = null;
             
             // check for well-formed instructions
@@ -157,11 +161,10 @@
               default: // TODO must be at end of switch statement?
                 throw new Exception('Unrecognized opcode!');
               case Instruction.NOP: 
-                i++;
                 break;
               case Instruction.IMM:
                 this.push(next);
-                i++;
+                this.pc++;
                 break;
               case Instruction.ADD:
                 rhs = this.pop();
@@ -185,33 +188,35 @@
                 break;
               case Instruction.JMP:
                 // addr = this.pop(); // would allow you to calculate jump addresses ... not needed
-                i = next-1; // -1 since we're automatically incrementing i
+                this.pc = next-1; // -1 since we're automatically incrementing i
                 break;
               case Instruction.BEQ:
                 rhs = this.pop();
                 lhs = this.pop();
                 if(lhs === rhs)
-                  i = next-1;
+                  this.pc = next-1;
                 else
-                  i++; // since we need to skip immediate value
+                  this.pc++; // since we need to skip immediate value
                 break;
               case Instruction.BNE:
                 rhs = this.pop();
                 lhs = this.pop();
                 if(lhs !== rhs)
-                  i = next-1; 
+                  this.pc = next-1; 
                 else
-                  i++;
+                  this.pc++;
                 break;
               case Instruction.LOD:
                 this.push(Memory.readWord(next));
-                i++;
+                this.pc++;
                 break;
               case Instruction.STO:
                 Memory.writeWord(next, this.pop());
-                i++;
+                this.pc++;
                 break;
             }
+            
+            this.pc++;
           }
         }
       };
@@ -424,9 +429,14 @@
               Memory.asString(0, programLen) + '\n' +
               'Memory size (bytes): ' + (memStr.length/2) + '\n' +
               Memory.asString(0x8000, memStr.length/2));
+              
+            // Execute program
+            
+            VM.interpret();
+            $('pre#final-memory').text(Memory.asString(0x8000, memStr.length/2));
           }
           catch(e){
-            for(var i=0; i < e.length; i++){              
+            for(var i=0; i < e.length; i++){
               var row = $('<tr></tr>');
               row.append('<th scope="row">'+e[i].lineNo+'</th>');
               row.append('<td>'+e[i].message+'</td>');
