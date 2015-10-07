@@ -251,4 +251,9 @@
     this.$memGui.trigger('editor-sync', [cursorClone, hex]);
   };
   
+  exports.instance.prototype.toString = function(){
+    var memLines = this.memGui.getValue();
+    return memLines.replace(/\n/g,''); // remove any newlines
+  }
+  
 })(window.AceHexEditor = {}, jQuery, ace);

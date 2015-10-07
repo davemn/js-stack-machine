@@ -40,7 +40,8 @@
       case 0x5000:
       case 0x6000:
       case 0x7000:
-        throw new Error('Memory protection violation!'); // ROM portion of mem
+        // throw new Error('Memory protection violation!'); // ROM portion of mem
+        rom.setUint8(addr, val);
         break;
       case 0x8000:
       case 0x9000:
@@ -49,11 +50,11 @@
       case 0xC000:
       case 0xD000:
       case 0xE000:
-        return ram.setUint8(addr & 0x7FFF, val);
+        ram.setUint8(addr & 0x7FFF, val);
         break;
       case 0xF000:
         if(addr < 0xFF80)
-          return ram.setUint8(addr & 0x7FFF, val);
+          ram.setUint8(addr & 0x7FFF, val);
         else
           throw new Error('Memory protection violation!'); // Memory-mapped I/O portion of mem
         break;
@@ -73,7 +74,8 @@
       case 0x5000:
       case 0x6000:
       case 0x7000:
-        throw new Error('Memory protection violation!'); // ROM portion of mem
+        // throw new Error('Memory protection violation!'); // ROM portion of mem
+        rom.setUint16(addr, val);
         break;
       case 0x8000:
       case 0x9000:
@@ -82,15 +84,15 @@
       case 0xC000:
       case 0xD000:
       case 0xE000:
-        return ram.setUint16(addr & 0x7FFF, val);
+        ram.setUint16(addr & 0x7FFF, val);
         break;
       case 0xF000:
         if(addr < 0xFF80)
-          return ram.setUint16(addr & 0x7FFF, val);
+          ram.setUint16(addr & 0x7FFF, val);
         else
           throw new Error('Memory protection violation!'); // Memory-mapped I/O portion of mem
         break;
     }
   };
-
+  
 })(window.Memory = {});

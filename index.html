@@ -345,7 +345,7 @@
         
         // - Initialize memory editor ---
         
-        new AceHexEditor.instance('editor-mem', 'editor-mem-ascii');
+        var hexEdit = new AceHexEditor.instance('editor-mem', 'editor-mem-ascii');
         
         // ===
         
@@ -380,14 +380,12 @@
             var programLen = calcLen(program);
             
             // Load program segment into memory
-            var programSegment = new DataView(Memory.bank, 0, programLen); // buffer, offset, length
-            
             var byteI = 0;
             var hasImm = false;
             
             for(var i=0; i < program.length; i++){
               if(hasImm){
-                programSegment.setInt16(byteI, program[i], false); // big endian
+                Memory.writeWord(byteI, program[i]);
                 byteI+=2;
                 hasImm = false;
                 continue;
@@ -398,16 +396,18 @@
                 hasImm = true;
               }
               
-              programSegment.setUint8(byteI, program[i]);
+              Memory.writeByte(byteI, program[i]);
+              
               byteI++;
             }
             
             // - DEBUG --
             console.log('Program size (bytes): ' + programLen);
             var progHex = '';
-            for(i=0; i < programSegment.byteLength; i++){
+            
+            for(var i=0; i < programLen; i++){
               // Convert byte to 2-character hex string
-              var hex = programSegment.getUint8(i).toString(16);
+              var hex = Memory.readByte(i).toString(16);
               var hexStr = ('00'+hex).substring(hex.length);
               
               progHex += hexStr + ' ';
@@ -416,8 +416,33 @@
             // - DEBUG --
             
             // Append a data segment to memory
+            var memStr = hexEdit.toString();
+            
+            // hex = parseInt(hexStr,16);
+            var memByte;
+            byteI=0x8000;
+            
+            for(var chrI=0; chrI < memStr.length; chrI+=2){
+              memByte = parseInt(memStr[chrI] + memStr[chrI+1], 16);
+              Memory.writeByte(byteI, memByte);
+              byteI++;
+            }
+            
+            // - DEBUG --
+            console.log('Memory size (bytes): ' + (memStr.length/2));
+            var memHex = '';
+            
+            for(var i=0; i < (memStr.length/2); i++){
+              // Convert byte to 2-character hex string
+              var hex = Memory.readByte(0x8000+i).toString(16);
+              var hexStr = ('00'+hex).substring(hex.length);
+              
+              memHex += hexStr + ' ';
+            }
+            console.log(memHex);
+            // - DEBUG --
           }
-          catch(e){          
+          catch(e){
             for(var i=0; i < e.length; i++){              
               var row = $('<tr></tr>');
               row.append('<th scope="row">'+e[i].lineNo+'</th>');
