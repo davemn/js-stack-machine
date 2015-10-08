@@ -11,6 +11,13 @@
   var ram = new DataView(bank, 0x8000, 0x7F80); // upper half of memory is read/write
   // var io =  new DataView(bank, 0xFF80, 0x80); // top 128 bytes, for memory-mapped I/O
   
+  exports.reset = function(){
+    var view = new DataView(bank);
+    for(var dwordI=0; dwordI < (this.length/4); dwordI++){
+      view.setUint32(dwordI*4, 0);
+    }
+  };
+  
   exports.readByte = function(addr){
     if(addr < 0 || addr >= this.length)
       throw new Error('Memory access violation!');

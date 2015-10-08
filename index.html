@@ -89,18 +89,18 @@
       });
       
       var Instruction = { // Lookup opcode by mnemonic
-        IMM: 0x00, // immediate
-        ADD: 0x01,
-        SUB: 0x02,
-        MUL: 0x03,
-        DIV: 0x04,
-        JMP: 0x05, // absolute address ...
-        BEQ: 0x06,
-        BNE: 0x07,
-        LOD: 0x08,
-        STO: 0x09,
+        NOP: 0x00,
+        IMM: 0x01, // immediate
+        ADD: 0x02,
+        SUB: 0x03,
+        MUL: 0x04,
+        DIV: 0x05,
+        JMP: 0x06, // absolute address ...
+        BEQ: 0x07,
+        BNE: 0x08,
+        LOD: 0x09,
+        STO: 0x0A
         // TODO PC relative addressing?
-        NOP: 0xff
       };
       
       var WideOpcode = {}; // Opcodes requiring an immediate / address value in the adjacent byte(s)
@@ -118,6 +118,11 @@
         stackMax: 128,
         pc: 0, // program counter
         
+        reset: function(){
+          this.stack = []; // only works if no other code is holding onto references
+          this.pc = 0;
+        },
+        
         push: function(val){
           if(this.stack.length >= this.stackMax)
             throw new Error('Stack overflow!');
@@ -133,7 +138,7 @@
         },
         
         interpret: function(){
-          var instruction = 0, next;
+          var instruction = null, next;
           var lhs, rhs;
           
           while(instruction !== Instruction.NOP){
@@ -164,7 +169,7 @@
                 break;
               case Instruction.IMM:
                 this.push(next);
-                this.pc++;
+                this.pc+=2;
                 break;
               case Instruction.ADD:
                 rhs = this.pop();
@@ -196,7 +201,7 @@
                 if(lhs === rhs)
                   this.pc = next-1;
                 else
-                  this.pc++; // since we need to skip immediate value
+                  this.pc+=2; // since we need to skip immediate value
                 break;
               case Instruction.BNE:
                 rhs = this.pop();
@@ -204,15 +209,15 @@
                 if(lhs !== rhs)
                   this.pc = next-1; 
                 else
-                  this.pc++;
+                  this.pc+=2;
                 break;
               case Instruction.LOD:
                 this.push(Memory.readWord(next));
-                this.pc++;
+                this.pc+=2;
                 break;
               case Instruction.STO:
                 Memory.writeWord(next, this.pop());
-                this.pc++;
+                this.pc+=2;
                 break;
             }
             
@@ -381,13 +386,17 @@
         $('button#assemble').click(function(evt){
           evt.preventDefault();
           $('table#assemble-output > tbody').empty(); // clear our table of errors from previous run
-          
+                    
           var src = editor.getValue();
           
           // Assemble the program segment, load program & data segments into memory, and start execution
           try {
             var program = assemble(src); // returns an untyped array of natively-sized JS integers.
             var programLen = calcLen(program);
+            
+            // Reset the CPU & mem for new run
+            VM.reset();
+            Memory.reset();
             
             // Load program segment into memory
             var byteI = 0;
@@ -436,6 +445,8 @@
             $('pre#final-memory').text(Memory.asString(0x8000, memStr.length/2));
           }
           catch(e){
+            // console.log(e);
+          
             for(var i=0; i < e.length; i++){
               var row = $('<tr></tr>');
               row.append('<th scope="row">'+e[i].lineNo+'</th>');
