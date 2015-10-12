@@ -132,6 +132,9 @@
               </div>
             </div>
           </div>
+          <div class='col-md-6'>
+            <div id='editor-mirror'></div>
+          </div>
         </div>
         <div class='row'>
           <div class='col-md-6'>
@@ -151,6 +154,10 @@
     <script type="text/javascript" src="bower_components/jquery/dist/jquery.js"></script>
     <script type="text/javascript" src="bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.0/ace.js" charset="utf-8"></script>
+    
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.7.0/codemirror.min.js"></script>
+    <script type="text/javascript" src="bower_components/codemirror/mode/javascript/javascript.js"></script>
+    
     <script type="text/javascript" src="memory.js"></script>
     <script type="text/javascript" src="editor.js"></script>
     <script>
@@ -415,7 +422,17 @@
         return byteCount;
       }
       
-      $(document).ready(function(evt) {      
+      $(document).ready(function(evt) {  
+        var mirror = CodeMirror($('#editor-mirror').get(0), {
+          value: "function foobar() { console.log(\"Hello\"); }\n",
+          mode: "javascript",
+          lineNumbers: true,
+          lineNumberFormatter: function(lineNo){
+            var hex = lineNo.toString(16).toUpperCase();
+            return ('0000'+hex).substring(hex.length);
+          }
+        });
+      
         // - Initialize assembly program editor ---
         var Range = ace.require('ace/range').Range;
         var Document = ace.require('ace/document').Document;
