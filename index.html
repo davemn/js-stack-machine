@@ -24,11 +24,96 @@
           </div>
         </div>
         <div class='row'>
-          <div class='col-md-6'>
-            <h2 class='text-center'>Assembly</h2>
+          <div class='col-md-4'>
+            <h2>&nbsp;</h2>
+            <h5 class='text-center'>Program</h5>
             <div class='editor-container'>
               <div id="editor-asm"></div>
             </div>
+            <div class='box box-default'>
+              <button id="assemble" class="btn btn-primary btn-block">Assemble & Load</button>
+            </div>
+            <h5 class='text-center'>Assembly Errors</h5>
+            <table class="table" id="assemble-output">
+              <thead>
+                <tr>
+                  <th>Line #</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class='col-md-8'>
+            <h2 class='text-center'>Assembly</h2>
+            <dl>
+              <dt>
+                <kbd>NOP</kbd> - No Operation
+              </dt>
+              <dd>
+                Does nothing, and stops all current execution.
+              </dd>
+              <dt>
+                <kbd>IMM</kbd><kbd>&lt;hex or dec&gt;</kbd> - Push Immediate
+              </dt>
+              <dd>
+                 Pushes an immediate value on the stack.
+              </dd>
+              <dt>
+                <kbd>ADD</kbd> - Add
+              </dt>
+              <dd>
+                Adds the top two items on the stack, removing them. Places the result on the stack.
+              </dd>
+              <dt>
+                <kbd>SUB</kbd> - Subtract. <code>stack[top-1] - stack[top]</code>
+              </dt>
+              <dd>
+                Subtracts the top of the stack from the next element, removing both. Places the result on the stack.
+              </dd>
+              <dt>
+                <kbd>MUL</kbd> - Multiply
+              </dt>
+              <dd>
+                Multiplies the top of the stack with the next element, removing both. Places the result on the stack.
+              </dd>
+              <dt>
+                <kbd>DIV</kbd> - Divide. <code>stack[top-1] / stack[top]</code>
+              </dt>
+              <dd>
+                Divides the next element from the top of the stack by the top of the stack, removing both. Places the result on the stack.
+              </dd>
+              <dt>
+                <kbd>JMP</kbd><kbd>&lt;hex or dec address&gt;</kbd> - Unconditional Jump
+              </dt>
+              <dd>
+                Sets the program counter, to move execution to the specified address.
+              </dd>
+              <dt>
+                <kbd>BEQ</kbd><kbd>&lt;hex or dec address&gt;</kbd> - Branch If Equal. <code>stack[top-1] == stack[top]</code>
+              </dt>
+              <dd>
+                Moves execution to the specified address, if the top two elements on the stack are equal. Both stack elements are removed.
+              </dd>
+              <dt>
+                <kbd>BNE</kbd><kbd>&lt;hex or dec address&gt;</kbd> - Branch If Not Equal. <code>stack[top-1] != stack[top]</code>
+              </dt>
+              <dd>
+                Moves execution to the specified address, if the top two elements on the stack are not equal. Both stack elements are removed.
+              </dd>
+              <dt>
+                <kbd>LOD</kbd><kbd>&lt;hex or dec address&gt;</kbd> - Load
+              </dt>
+              <dd>
+                Pushes the word at the given address onto the stack.
+              </dd>
+              <dt>
+                <kbd>STO</kbd><kbd>&lt;hex or dec address&gt;</kbd> - Store
+              </dt>
+              <dd>
+                Stores the word at the top of the stack at the given address. Remove the element at the top of the stack.
+              </dd>
+            </dl>
           </div>
           <div class='col-md-6'>
             <div class="row">
@@ -47,23 +132,8 @@
               </div>
             </div>
           </div>
-          <div class='col-md-6 col-md-offset-3'>
-            <button id="assemble" class="btn btn-primary btn-block">Assemble & Load</button>
-          </div>
         </div>
         <div class='row'>
-          <div class='col-md-6'>
-            <h2 class='text-center'>Assembly Errors</h2>
-            <table class="table" id="assemble-output">
-              <thead>
-                <tr>
-                  <th>Line #</th>
-                  <th>Message</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
           <div class='col-md-6'>
             <h2 class='text-center'>Starting Memory</h2>
             <pre id="memory-view">Waiting for input ...</pre>
