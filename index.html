@@ -437,8 +437,13 @@
         hex: [],
         ascii: []
       };
-      
-      $(document).ready(function(evt) {  
+     
+      function validOpcode(str){
+        var clean = str.replace(/[^A-Za-z]/g,'');
+        return clean.toUpperCase();
+      }
+     
+      $(document).ready(function(evt) { 
         // - Create a view to swap between memory and assembly. ---
         mirror = CodeMirror($('#editor-mirror').get(0), {
           value: "function foobar() { console.log(\"Hello\"); }\n",
@@ -448,7 +453,34 @@
             return ('0000'+hex).substring(hex.length);
           }
         });
-        
+       
+        mirror.setOption('extraKeys', {
+          Enter: function(cm){
+            console.log('Enter pressed!');
+           
+            switch(mirrorState) {
+              case EditorState.OPCODE_0:
+                cm.execCommand('newlineAndIndent');
+                break;
+              case EditorState.OPCODE_1:
+              case EditorState.OPCODE_2:
+                break;
+              case EditorState.HEX_UPPER:
+                cm.execCommand('newlineAndIndent');
+                break;
+              case EditorState.HEX_LOWER:
+                break;
+              case EditorState.ASCII:
+                cm.execCommand('newlineAndIndent');
+                break;
+            };
+          },
+          Backspace: function(cm){
+            console.log('Backspace pressed!');
+            cm.execCommand('delCharBefore');
+          }
+        });
+       
         /*
          * Methods prefixed with doc. can, unless otherwise specified, 
          * be called both on CodeMirror (editor) instances and 
@@ -467,54 +499,80 @@
         
         // Acts as our validator of state transitions. Won't allow invalid characters to 
         // be typed while within certain editor states.
-        
-        mirror.on('beforeChange', function(inst, chg){
-          var clean = '';
-          
-          switch(mirrorState) {
-            case EditorState.OPCODE_0: // validate transitions from this state
-              clean = chg.text[0].replace(/[^A-Za-z]/g,''); // TODO handle pastes of > 1 character
-              clean = clean.toUpperCase();
-              
-              if(clean.length === 0)
-                chg.cancel();
-              else
-                chg.update(chg.from, chg.to, clean);
-              break;
-            case EditorState.OPCODE_1:
-              clean = chg.text[0].replace(/[^A-Za-z]/g,'');
-              clean = clean.toUpperCase();
-              
-              if(clean.length === 0)
-                chg.cancel();
-              else
-                chg.update(chg.from, chg.to, clean);
-              break;
-            case EditorState.OPCODE_2:
-              break;
-            case EditorState.HEX_UPPER:
-              break;
-            case EditorState.HEX_LOWER:
-              break;
-            case EditorState.ASCII:
-              break;
-          };
-        });
-        
+       
+        // mirror.on('beforeChange', function(inst, chg){
+        //   var clean = '';
+        //  
+        //   switch(mirrorState) {
+        //     case EditorState.OPCODE_0: // validate transitions from this state
+        //       clean = validOpcode(chg.text[0]); // TODO handle pastes of > 1 character
+        //      
+        //       if(clean.length === 0)
+        //         chg.cancel();
+        //       else {
+        //         // Right pad to 3 characters
+        //         var cleanPadded = (clean + Array(4).join('-')).substring(0,3);
+        //         console.log(cleanPadded);
+        //         chg.update(chg.from, chg.to, cleanPadded);
+        //       }
+        //       break;
+        //     case EditorState.OPCODE_1:
+        //       clean = validOpcode(chg.text[0]);
+        //      
+        //       if(clean.length === 0)
+        //         chg.cancel();
+        //       else {
+        //         // Right pad to 2 characters
+        //         var cleanPadded = (clean + Array(3).join('-')).substring(0,2);
+        //         chg.update(chg.from, chg.to, cleanPadded);
+        //       }
+        //       break;
+        //     case EditorState.OPCODE_2:
+        //       clean = validOpcode(chg.text[0]);
+        //      
+        //       if(clean.length === 0)
+        //         chg.cancel();
+        //       else
+        //         chg.update(chg.from, chg.to, clean);
+        //      
+        //       break;
+        //     case EditorState.HEX_UPPER:
+        //       break;
+        //     case EditorState.HEX_LOWER:
+        //       break;
+        //     case EditorState.ASCII:
+        //       break;
+        //   };
+        // });
+       
+        console.log('OPCODE_0:   1');
+        console.log('OPCODE_1:   2');
+        console.log('OPCODE_2:   4');
+        console.log('HEX_UPPER:  8');
+        console.log('HEX_LOWER: 16');
+        console.log('ASCII:     32');
+       
         mirror.on('change', function(inst, chg){
           // chg.from - position in pre-change coords where change started
           // chg.to - position in pre-change coords where change ended
           // chg.text
           // chg.removed
           // chg.origin
-          
+         
+          var cleanInput = validOpcode(chg.text[0]);
+         
+          if(cleanInput.length === 0)
+            return; // no state transitions if we've entered a meaningless character
+         
           switch(mirrorState) {
             case EditorState.OPCODE_0:
               var marker = mirror.markText(chg.from, inst.getCursor('to'), {
-                className: 'opcode'
+                className: 'opcode',
+                atomic: true
               });
               mirrorMarkers.opcode.push(marker);
-            
+              console.log('State transition := ' + mirrorState + ' > ' + EditorState.OPCODE_1);
+              // TODO disable cursor navigation
               mirrorState = EditorState.OPCODE_1;
               break;
             case EditorState.OPCODE_1:
@@ -523,13 +581,28 @@
               oldMarker.clear();
               
               var marker = mirror.markText(oldCoords.from, inst.getCursor('to'), {
-                className: 'opcode'
+                className: 'opcode',
+                atomic: true
               });
               
               mirrorMarkers.opcode.push(marker);
-              mirrorState = EditorState.OPCODE_0; // TODO testing only. Should transition to OPCODE_2.
+              console.log('State transition := ' + mirrorState + ' > ' + EditorState.OPCODE_2);
+              mirrorState = EditorState.OPCODE_2;
               break;
             case EditorState.OPCODE_2:
+              var oldMarker = mirrorMarkers.opcode.pop();
+              var oldCoords = oldMarker.find();
+              oldMarker.clear();
+             
+              var marker = mirror.markText(oldCoords.from, inst.getCursor('to'), {
+                className: 'opcode',
+                atomic: true
+              });
+             
+              mirrorMarkers.opcode.push(marker);
+              console.log('State transition := ' + mirrorState + ' > ' + EditorState.OPCODE_0);
+              // TODO enable cursor navigation
+              mirrorState = EditorState.OPCODE_0;
               break;
             case EditorState.HEX_UPPER:
               break;
