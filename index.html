@@ -432,8 +432,23 @@
       
       var mirror = null;
       var mirrorState = EditorState.OPCODE_0;
+      
       var mirrorMarkers = {
-        opcode: [],
+        opcode: {
+          // TODO filter by mark type
+          findMark: function(cm, anchor, anchorPos){
+            var found;
+            
+            found = cm.findMarksAt(anchor);
+            if(found.length === 0)
+              return null;
+              
+            if(anchorPos === 'from')
+              return found[found.length-1];
+            else
+              return found[0];
+          }
+        },
         hex: [],
         ascii: []
       };
@@ -484,11 +499,29 @@
                 cm.execCommand('newlineAndIndent');
                 break;
             };
+          },
+          Backspace: function(cm){
+            console.log('Backspace pressed!');
+            
+            switch(mirrorState){
+              case EditorState.OPCODE_0:
+                break;
+              case EditorState.OPCODE_1:
+                mirrorState = EditorState.OPCODE_0; // go back to empty state since marks are atomic
+                break;
+              case EditorState.OPCODE_2:
+                mirrorState = EditorState.OPCODE_0; // go back to empty state since marks are atomic
+                break;
+              case EditorState.HEX_UPPER:
+                break;
+              case EditorState.HEX_LOWER:
+                break;
+              case EditorState.ASCII:
+                break;
+            };
+            
+            cm.execCommand('delCharBefore');
           }
-          // Backspace: function(cm){
-          //   console.log('Backspace pressed!');
-          //   cm.execCommand('delCharBefore');
-          // }
         });
                
         /**
@@ -565,45 +598,54 @@
           var cleanInput = validOpcode(chg.text[0]);
          
           if(cleanInput.length === 0)
-            return; // no state transitions if we've entered a meaningless character
+            return; // no state transitions if we've entered a control character (handled by keymap)
          
           switch(mirrorState) {
             case EditorState.OPCODE_0:
-              var marker = mirror.markText(chg.from, inst.getCursor('to'), {
+              var marker = inst.markText(chg.from, inst.getCursor('to'), {
                 className: 'opcode',
                 atomic: true
               });
-              mirrorMarkers.opcode.push(marker);
               console.log('State transition := ' + mirrorState + ' > ' + EditorState.OPCODE_1);
+              console.log('  Created new marker: [' + marker.find().from.ch + ' - ' + marker.find().to.ch + ')');
               // TODO disable cursor navigation
               mirrorState = EditorState.OPCODE_1;
               break;
             case EditorState.OPCODE_1:
-              var oldMarker = mirrorMarkers.opcode.pop();
+              var cursor = inst.getCursor('from');
+              
+              // 'to' identifies which end of the marker 'cursor' refers to
+              var oldMarker = mirrorMarkers.opcode.findMark(inst, {line:chg.from.line, ch:chg.from.ch-1}, 'from'); 
               var oldCoords = oldMarker.find();
+              
               oldMarker.clear();
               
-              var marker = mirror.markText(oldCoords.from, inst.getCursor('to'), {
+              var marker = inst.markText(oldCoords.from, cursor, {
                 className: 'opcode',
                 atomic: true
               });
               
-              mirrorMarkers.opcode.push(marker);
               console.log('State transition := ' + mirrorState + ' > ' + EditorState.OPCODE_2);
+              console.log('  Old marker at [' + oldCoords.from.ch + ' - ' + oldCoords.to.ch + ')');
+              console.log('  New marker at [' + marker.find().from.ch + ' - ' + marker.find().to.ch + ')');
               mirrorState = EditorState.OPCODE_2;
               break;
             case EditorState.OPCODE_2:
-              var oldMarker = mirrorMarkers.opcode.pop();
+              var cursor = inst.getCursor('from');
+
+              var oldMarker = mirrorMarkers.opcode.findMark(inst, {line:chg.from.line, ch:chg.from.ch-2}, 'from');
               var oldCoords = oldMarker.find();
+              
               oldMarker.clear();
              
-              var marker = mirror.markText(oldCoords.from, inst.getCursor('to'), {
+              var marker = inst.markText(oldCoords.from, cursor, {
                 className: 'opcode',
                 atomic: true
               });
              
-              mirrorMarkers.opcode.push(marker);
               console.log('State transition := ' + mirrorState + ' > ' + EditorState.OPCODE_0);
+              console.log('  Old marker at [' + oldCoords.from.ch + ' - ' + oldCoords.to.ch + ')');
+              console.log('  New marker at [' + marker.find().from.ch + ' - ' + marker.find().to.ch + ')');
               // TODO enable cursor navigation
               mirrorState = EditorState.OPCODE_0;
               break;
