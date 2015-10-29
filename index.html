@@ -432,6 +432,7 @@
       
       var mirror = null;
       var mirrorState = EditorState.OPCODE_0;
+      var lastCursor = {line:0, ch:0}; // last known cursor position
       
       var mirrorMarkers = {
         opcode: {
@@ -515,6 +516,7 @@
               case EditorState.HEX_UPPER:
                 break;
               case EditorState.HEX_LOWER:
+                mirrorState = EditorState.HEX_UPPER;
                 break;
               case EditorState.ASCII:
                 break;
@@ -531,6 +533,15 @@
         mirror.on('beforeChange', function(inst, chg){
           var clean = '';
           
+          var cursor = inst.getCursor('from');
+          
+          // Bail out if the cursor's moved from where it was last seen
+          if(lastCursor.line !== cursor.line || lastCursor.ch !== cursor.ch){
+            chg.cancel();
+            inst.setCursor(lastCursor); // move the cursor back to where we expect it
+            return;
+          }
+          
           // Certain keypresses (Enter, Backspace, others?) generate empty changes.
           // Invisible changes like these should be handled by the keymap instead.
           if(chg.text[0].length === 0) {
@@ -545,11 +556,8 @@
               if(clean.length === 0)
                 chg.cancel();
               else {
-                // Right pad to 3 characters
-                // var cleanPadded = (clean + Array(4).join('-')).substring(0,3);
-                // console.log(cleanPadded);
-                // chg.update(chg.from, chg.to, cleanPadded);
                 chg.update(chg.from, chg.to, clean);
+                lastCursor = {line:cursor.line, ch:cursor.ch+1};
               }
               break;
             case EditorState.OPCODE_1:
@@ -558,9 +566,6 @@
               if(clean.length === 0)
                 chg.cancel();
               else {
-                // Right pad to 2 characters
-                // var cleanPadded = (clean + Array(3).join('-')).substring(0,2);
-                // chg.update(chg.from, chg.to, cleanPadded);
                 chg.update(chg.from, chg.to, clean);
               }
               break;
