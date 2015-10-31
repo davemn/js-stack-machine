@@ -421,6 +421,18 @@
         return byteCount;
       }
       
+      function validOpcode(str){
+        var clean = str.replace(/[^A-Za-z]/g,'');
+        return clean.toUpperCase();
+      }
+      
+      function cursorCmp(a, b){
+        if(a.line - b.line !== 0)
+          return a.line - b.line;
+          
+        return a.ch - b.ch;
+      }
+      
       var EditorState = {
         OPCODE_0:   1,
         OPCODE_1:   2,
@@ -429,10 +441,15 @@
         HEX_LOWER: 16,
         ASCII:     32
       };
-      
+                  
       var mirror = null;
       var mirrorState = EditorState.OPCODE_0;
-      var lastCursor = {line:0, ch:0}; // last known cursor position
+      
+      /**
+       * Keep track of cursor position, to prevent move + modify
+       * while in the middle of a (compound) edit state.
+       */
+      var lastCursor = {line: 0, ch:0};
       
       var mirrorMarkers = {
         opcode: {
@@ -453,12 +470,7 @@
         hex: [],
         ascii: []
       };
-     
-      function validOpcode(str){
-        var clean = str.replace(/[^A-Za-z]/g,'');
-        return clean.toUpperCase();
-      }
-     
+          
       $(document).ready(function(evt) { 
         // - Create a view to swap between memory and assembly. ---
         mirror = CodeMirror($('#editor-mirror').get(0), {
@@ -474,7 +486,7 @@
         //   select := 'around', 'start'
         //   replaceSelction will also insert text at the current cursor location - a 0-length selection
         // mirror.setSelection({line:0, ch:9}, {line:0, ch:12}) // anchor, head - selects characters in the range [anchor, head)
-       
+               
         /**
          * Validate state transitions. Won't allow invalid *control* characters
          * (invisible key presses like Return) to be typed while within certain 
@@ -483,26 +495,33 @@
         mirror.setOption('extraKeys', {
           Enter: function(cm){
             console.log('Enter pressed!');
+            
+            var cursor = cm.getCursor('from');
            
             switch(mirrorState) {
               case EditorState.OPCODE_0:
                 cm.execCommand('newlineAndIndent');
+                lastCursor = cursor;
                 break;
               case EditorState.OPCODE_1:
               case EditorState.OPCODE_2:
                 break;
               case EditorState.HEX_UPPER:
                 cm.execCommand('newlineAndIndent');
+                lastCursor = cursor;
                 break;
               case EditorState.HEX_LOWER:
                 break;
               case EditorState.ASCII:
                 cm.execCommand('newlineAndIndent');
+                lastCursor = cursor;
                 break;
-            };
+            }
           },
           Backspace: function(cm){
             console.log('Backspace pressed!');
+            
+            var cursor = cm.getCursor('from');
             
             switch(mirrorState){
               case EditorState.OPCODE_0:
@@ -520,35 +539,113 @@
                 break;
               case EditorState.ASCII:
                 break;
-            };
+            }
             
             cm.execCommand('delCharBefore');
+            lastCursor = cursor;
+          },
+          Left: function(cm){
+            var cursor = cm.getCursor('from');
+            
+            switch(mirrorState){
+              case EditorState.OPCODE_0:
+                cm.execCommand('goCharLeft');
+                lastCursor = cursor;
+                break;
+              case EditorState.OPCODE_1:
+                break;
+              case EditorState.OPCODE_2:
+                break;
+              case EditorState.HEX_UPPER:
+                cm.execCommand('goCharLeft');
+                lastCursor = cursor;
+                break;
+              case EditorState.HEX_LOWER:
+                break;
+              case EditorState.ASCII:
+                cm.execCommand('goCharLeft');
+                lastCursor = cursor;
+                break;
+            }
+          },
+          Right: function(cm){
+            var cursor = cm.getCursor('from');
+            
+            switch(mirrorState){
+              case EditorState.OPCODE_0:
+                cm.execCommand('goCharRight');
+                lastCursor = cursor;
+                break;
+              case EditorState.OPCODE_1:
+                break;
+              case EditorState.OPCODE_2:
+                break;
+              case EditorState.HEX_UPPER:
+                cm.execCommand('goCharRight');
+                lastCursor = cursor;
+                break;
+              case EditorState.HEX_LOWER:
+                break;
+              case EditorState.ASCII:
+                cm.execCommand('goCharRight');
+                lastCursor = cursor;
+                break;
+            }
+          },
+          Down: function(cm){
+            var cursor = cm.getCursor('from');
+            
+            switch(mirrorState){
+              case EditorState.OPCODE_0:
+              case EditorState.HEX_UPPER:
+              case EditorState.ASCII:
+                cm.execCommand('goLineDown');
+                lastCursor = cursor;
+                break;
+            }
+          },
+          Up: function(cm){
+            var cursor = cm.getCursor('from');
+            
+            switch(mirrorState){
+              case EditorState.OPCODE_0:
+              case EditorState.HEX_UPPER:
+              case EditorState.ASCII:
+                cm.execCommand('goLineUp');
+                lastCursor = cursor;
+                break;
+            }
           }
         });
-               
+                
         /**
          * Validate state transitions. Won't allow invalid characters to be typed 
          * while within certain editor states.
          */
         mirror.on('beforeChange', function(inst, chg){
           var clean = '';
-          
           var cursor = inst.getCursor('from');
-          
-          // Bail out if the cursor's moved from where it was last seen
-          if(lastCursor.line !== cursor.line || lastCursor.ch !== cursor.ch){
-            chg.cancel();
-            inst.setCursor(lastCursor); // move the cursor back to where we expect it
-            return;
-          }
-          
+                    
           // Certain keypresses (Enter, Backspace, others?) generate empty changes.
           // Invisible changes like these should be handled by the keymap instead.
           if(chg.text[0].length === 0) {
             chg.update(); // pass on the change unaltered
             return;
           }
-         
+          
+          switch(mirrorState){
+            case EditorState.OPCODE_1:
+            case EditorState.OPCODE_2:
+            case EditorState.HEX_LOWER:
+              // Bail out if the cursor's moved from where it was last seen
+              if(cursorCmp(lastCursor, cursor) !== 0){
+                chg.cancel();
+                inst.setCursor(lastCursor); // move the cursor back to where we expect it
+                return;
+              }
+              break;
+          }
+                   
           switch(mirrorState) {
             case EditorState.OPCODE_0: // validate transitions from this state
               clean = validOpcode(chg.text[0]); // TODO handle pastes of > 1 character
@@ -557,7 +654,6 @@
                 chg.cancel();
               else {
                 chg.update(chg.from, chg.to, clean);
-                lastCursor = {line:cursor.line, ch:cursor.ch+1};
               }
               break;
             case EditorState.OPCODE_1:
@@ -611,9 +707,10 @@
                 className: 'opcode',
                 atomic: true
               });
+              
               console.log('State transition := ' + mirrorState + ' > ' + EditorState.OPCODE_1);
               console.log('  Created new marker: [' + marker.find().from.ch + ' - ' + marker.find().to.ch + ')');
-              // TODO disable cursor navigation
+              
               mirrorState = EditorState.OPCODE_1;
               break;
             case EditorState.OPCODE_1:
@@ -633,6 +730,7 @@
               console.log('State transition := ' + mirrorState + ' > ' + EditorState.OPCODE_2);
               console.log('  Old marker at [' + oldCoords.from.ch + ' - ' + oldCoords.to.ch + ')');
               console.log('  New marker at [' + marker.find().from.ch + ' - ' + marker.find().to.ch + ')');
+              
               mirrorState = EditorState.OPCODE_2;
               break;
             case EditorState.OPCODE_2:
@@ -651,7 +749,7 @@
               console.log('State transition := ' + mirrorState + ' > ' + EditorState.OPCODE_0);
               console.log('  Old marker at [' + oldCoords.from.ch + ' - ' + oldCoords.to.ch + ')');
               console.log('  New marker at [' + marker.find().from.ch + ' - ' + marker.find().to.ch + ')');
-              // TODO enable cursor navigation
+              
               mirrorState = EditorState.OPCODE_0;
               break;
             case EditorState.HEX_UPPER:
@@ -660,7 +758,10 @@
               break;
             case EditorState.ASCII:
               break;
-          };
+          }
+          
+          var cursor = inst.getCursor('from');
+          lastCursor = cursor;
         });
       
         // - Initialize assembly program editor ---
