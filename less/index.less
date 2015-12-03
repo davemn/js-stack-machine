@@ -16,18 +16,6 @@ button[type="submit"].btn-block {
   margin-top: @grid-gutter-width;
 }
 
-.editor-container {
-  position: relative;
-  height: 256px;
-  
-  #editor-asm, #editor-mem, #editor-mem-ascii { 
-    position: absolute;
-    width: 100%;
-    height: 256px;
-    border: 1px solid @white-smoke-luma;
-  }
-}
-
 /* ================================================================ */
 /* Text                                                             */
 /* ================================================================ */
@@ -52,9 +40,7 @@ button[type="submit"].btn-block {
 @import "../bower_components/shared-styles/theme.less";
 
 .assemble-error {
-  position: absolute;
   background: @naples-yellow;
-  z-index: 20;
 }
 
 table#assemble-output tbody tr:hover {
