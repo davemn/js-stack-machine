@@ -119,11 +119,10 @@
             <h2 class='text-center'>Starting Memory</h2>
             <pre id="memory-view">Waiting for input ...</pre>
           </div>
-        </div>
-        <div class='row'>
-          <div class='col-md-6 col-md-offset-3'>
+          <div class='col-md-6'>
             <h2 class='text-center'>Final Memory</h2>
             <pre id="final-memory">Output here ...</pre>
+            <p class='help-text'>The memory shown here starts at address 0x8000.</h2>
           </div>
         </div>
       </div>
@@ -162,6 +161,23 @@
       WideOpcode[Instruction.BNE] = true;
       WideOpcode[Instruction.LOD] = true;
       WideOpcode[Instruction.STO] = true;
+      
+      var NarrowInstruction = {
+        NOP: 0x00,
+        ADD: 0x02,
+        SUB: 0x03,
+        MUL: 0x04,
+        DIV: 0x05
+      };
+      
+      var WideInstruction = {
+        IMM: 0x01,
+        JMP: 0x06,
+        BEQ: 0x07,
+        BNE: 0x08,
+        LOD: 0x09,
+        STO: 0x0A
+      };
       
       // ===
       
@@ -308,15 +324,9 @@
             }
             
             // check for missing argument to multi-byte instructions
-            switch(Instruction[mnemonic]){
-              case Instruction.IMM:
-              case Instruction.JMP:
-              case Instruction.BEQ:
-              case Instruction.BNE:
-              case Instruction.LOD:
-              case Instruction.STO:
-                err.push(new AssembleError(i+1, 'Expected immediate / address for opcode: "'+mnemonic+'".'));
-                continue;
+            if(mnemonic in WideInstruction){
+              err.push(new AssembleError(i+1, 'Expected immediate / address for opcode: "'+mnemonic+'".'));
+              continue;
             }
           
             bin.push(Instruction[mnemonic]);
@@ -343,15 +353,10 @@
           
             immediate = parseInt(tokens[2]);
             
-            switch(Instruction[mnemonic]){
-              case Instruction.NOP:
-              case Instruction.ADD:
-              case Instruction.SUB:
-              case Instruction.MUL:
-              case Instruction.DIV:
-                // single-byte instruction
-                err.push(new AssembleError(i+1, 'Immediate not allowed for opcode: "'+mnemonic+'".'));
-                continue;
+            if(mnemonic in NarrowInstruction){
+              // single-byte instruction
+              err.push(new AssembleError(i+1, 'Immediate not allowed for opcode: "'+mnemonic+'".'));
+              continue;
             }
             
             // Signed 16 bits: -0x8000 to 0x7fff. Still want to permit unsigned (absolute) addresses.
@@ -372,8 +377,8 @@
       
       /** 
        * Find the length, in bytes, of the given program.
-       * Program is assumed to be an untyped JS array of 
-       * integers.
+       * Program is assumed to be the output of the assemble()
+       * function (i.e., an untyped JS array of integers).
        */
       function calcLen(program){
         var byteCount = 0;
@@ -407,7 +412,7 @@
       $(document).ready(function(evt) { 
         // - Initialize assembly program editor ---
         
-        mirror = CodeMirror($('#editor-mirror').get(0), {
+        editor = CodeMirror($('#editor-mirror').get(0), {
           lineNumbers: true,
           lineNumberFormatter: function(lineNo){
             var hex = lineNo.toString(16).toUpperCase();
@@ -425,11 +430,11 @@
           
           curError = lineNo-1;
           
-          mirror.addLineClass(curError, 'background', 'assemble-error');
+          editor.addLineClass(curError, 'background', 'assemble-error');
         });
         
         $('table#assemble-output > tbody').on('mouseleave', 'tr', function(evt){
-          mirror.removeLineClass(curError, 'background');
+          editor.removeLineClass(curError, 'background');
           curError = -1;
         });
         
@@ -438,9 +443,8 @@
         $('button#assemble').click(function(evt){
           evt.preventDefault();
           $('table#assemble-output > tbody').empty(); // clear our table of errors from previous run
-                    
-          // var src = editor.getValue();
-          var src = mirror.getValue();
+          
+          var src = editor.getValue();
           
           // Assemble the program segment, load program & data segments into memory, and start execution
           try {
@@ -473,17 +477,19 @@
               byteI++;
             }
             
-            // Append a data segment to memory
-            var memStr = hexEdit.toString();
+            // // Append a data segment to memory
+            // var memStr = hexEdit.toString();
+            // 
+            // var memByte;
+            // byteI=0x8000;
+            // 
+            // for(var chrI=0; chrI < memStr.length; chrI+=2){
+            //   memByte = parseInt(memStr[chrI] + memStr[chrI+1], 16);
+            //   Memory.writeByte(byteI, memByte);
+            //   byteI++;
+            // }
             
-            var memByte;
-            byteI=0x8000;
-            
-            for(var chrI=0; chrI < memStr.length; chrI+=2){
-              memByte = parseInt(memStr[chrI] + memStr[chrI+1], 16);
-              Memory.writeByte(byteI, memByte);
-              byteI++;
-            }
+            var memStr = '0000';
             
             // Log output of loader
             
