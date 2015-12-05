@@ -2,14 +2,7 @@
   exports.length = 0x10000; // max bytes addressable by 16-bit word, = 64K bytes
   
   var bank = new ArrayBuffer(exports.length);
-  
-  /*
-   *       0 --------- 32K --- 64K
-   * 0x[0000     7FFF][8000    FFFF]
-   */
-  var rom = new DataView(bank, 0, 0x8000); // lower half of memory is read-only
-  var ram = new DataView(bank, 0x8000, 0x7F80); // upper half of memory is read/write
-  // var io =  new DataView(bank, 0xFF80, 0x80); // top 128 bytes, for memory-mapped I/O
+  var ram = new DataView(bank, 0);
   
   exports.reset = function(){
     var view = new DataView(bank);
@@ -23,84 +16,76 @@
       throw new Error('Memory access violation!');
     
     var view = new DataView(bank, addr, 1);
-    return view.getUint8(0);
+    return view.getInt8(0);
   };
   
-  exports.readWord = function(addr){
-    if(addr < 0 || addr >= this.length)
+  exports.readShort = function(addr){
+    if(addr < 0 || addr >= this.length-1)
       throw new Error('Memory access violation!');
     
     var view = new DataView(bank, addr, 2);
-    return view.getUint16(0); // in big-endian format
+    return view.getInt16(0);
   };
+  
+  exports.readInt = function(addr){
+    if(addr < 0 || addr >= this.length-3)
+      throw new Error('Memory access violation!');
+    
+    var view = new DataView(bank, addr, 4);
+    return view.getInt32(0);
+  };
+  
+  // TODO find a solution for 64-bit integers. 
+  // http://stackoverflow.com/a/9643650
+  // 
+  // exports.readLong = function(addr)
+  
+  exports.readChar = function(addr){
+    if(addr < 0 || addr >= this.length-1)
+      throw new Error('Memory access violation!');
+    
+    var view = new DataView(bank, addr, 2);
+    return view.getUint16(0); // unsigned!
+  };
+  
+  // ---
   
   exports.writeByte = function(addr, val){
     if(addr < 0 || addr >= this.length)
       throw new Error('Memory access violation!');
     
-    switch(addr & 0xF000){
-      case 0x0000:
-      case 0x1000:
-      case 0x2000:
-      case 0x3000:
-      case 0x4000:
-      case 0x5000:
-      case 0x6000:
-      case 0x7000:
-        // throw new Error('Memory protection violation!'); // ROM portion of mem
-        rom.setUint8(addr, val);
-        break;
-      case 0x8000:
-      case 0x9000:
-      case 0xA000:
-      case 0xB000:
-      case 0xC000:
-      case 0xD000:
-      case 0xE000:
-        ram.setUint8(addr & 0x7FFF, val);
-        break;
-      case 0xF000:
-        if(addr < 0xFF80)
-          ram.setUint8(addr & 0x7FFF, val);
-        else
-          throw new Error('Memory protection violation!'); // Memory-mapped I/O portion of mem
-        break;
-    }
+    // if(val < -128 || 127 < val)
+    //   throw new Error('Attempted to write value greater than type size.');
+    
+    ram.setInt8(addr, val);
   };
   
-  exports.writeWord = function(addr, val){
-    if(addr < 0 || addr >= this.length)
+  exports.writeShort = function(addr, val){
+    if(addr < 0 || addr >= this.length-1)
       throw new Error('Memory access violation!');
     
-    switch(addr & 0xF000){
-      case 0x0000:
-      case 0x1000:
-      case 0x2000:
-      case 0x3000:
-      case 0x4000:
-      case 0x5000:
-      case 0x6000:
-      case 0x7000:
-        // throw new Error('Memory protection violation!'); // ROM portion of mem
-        rom.setUint16(addr, val);
-        break;
-      case 0x8000:
-      case 0x9000:
-      case 0xA000:
-      case 0xB000:
-      case 0xC000:
-      case 0xD000:
-      case 0xE000:
-        ram.setUint16(addr & 0x7FFF, val);
-        break;
-      case 0xF000:
-        if(addr < 0xFF80)
-          ram.setUint16(addr & 0x7FFF, val);
-        else
-          throw new Error('Memory protection violation!'); // Memory-mapped I/O portion of mem
-        break;
-    }
+    ram.setInt16(addr, val);
   };
+  
+  exports.writeInt = function(addr, val){
+    if(addr < 0 || addr >= this.length-3)
+      throw new Error('Memory access violation!');
+    
+    ram.setInt32(addr, val);
+  };
+  
+  // TODO find a solution for 64-bit integers
+  // 
+  // exports.writeLong = function(addr, val)
+  
+  exports.writeChar = function(addr, val){
+    if(addr < 0 || addr >= this.length-1)
+      throw new Error('Memory access violation!');
+    
+    ram.setUint16(addr, val);
+  };
+  
+  // ---
   
   exports.asString = function(offset, byteLen){
     var out = '';
