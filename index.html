@@ -138,7 +138,7 @@
       $(window).load(function() {
       
       });
-      
+            
       var Instruction = { // Lookup opcode by mnemonic
         NOP: 0x00,
         IMM: 0x01, // immediate
@@ -178,6 +178,59 @@
         LOD: 0x09,
         STO: 0x0A
       };
+      
+      // ---
+      
+      // only supporting integral types: byte, short, int, long, char, reference (i.e. no floating-point)
+      var Opcode = {
+        // The load and store instructions transfer values between the local variables
+        // and the operand stack of a Java virtual machine frame
+        BIPUSH
+        SIPUSH
+        ICONST
+        LCONST
+        ACONST
+        ILOAD
+        LLOAD
+        ALOAD
+        ISTORE
+        LSTORE
+        ASTORE
+        
+        IADD
+        LADD
+        ISUB
+        LSUB
+        IMUL
+        LMUL
+        IDIV
+        LDIV
+        IREM
+        LREM
+        INEG
+        LNEG
+        IAND
+        LAND
+        IOR
+        LOR
+        IXOR
+        LXOR
+        
+        LCMP
+        
+        IRETURN
+        LRETURN
+        ARETURN
+      };
+      
+      // combined number of bytes of all immediate operands
+      var ImmediateLength = {
+        
+      };
+      
+      // ---
+      
+      
       
       // ===
       
@@ -400,11 +453,6 @@
         }
         
         return byteCount;
-      }
-      
-      function validOpcode(str){
-        var clean = str.replace(/[^A-Za-z]/g,'');
-        return clean.toUpperCase();
       }
       
       // ---
